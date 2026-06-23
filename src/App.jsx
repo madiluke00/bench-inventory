@@ -22,17 +22,17 @@ function useFonts() {
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 function totalQty(part) {
-  if (part.has_variants) return (part.variants || []).reduce((s, v) => s + v.qty, 0);
+  if (part.has_variants) return (part.variants || []).reduce((s, v) => s + (v.units || []).length, 0);
   return part.serialized ? (part.serials || []).length : part.qty;
 }
 function allocatedQty(part) {
-  if (part.has_variants) return (part.variants || []).reduce((s, v) => s + (v.allocations || []).reduce((a, b) => a + b.qty, 0), 0);
+  if (part.has_variants) return (part.variants || []).reduce((s, v) => s + (v.units || []).filter((u) => u.allocatedBuildId).length, 0);
   if (part.serialized) return (part.serials || []).filter((s) => s.allocatedBuildId).length;
   return (part.allocations || []).reduce((s, a) => s + a.qty, 0);
 }
 function availableQty(part) { return totalQty(part) - allocatedQty(part); }
 function variantAvailableQty(variant) {
-  return variant.qty - (variant.allocations || []).reduce((s, a) => s + a.qty, 0);
+  return (variant.units || []).filter((u) => !u.allocatedBuildId).length;
 }
 
 function StatusDot({ part }) {
@@ -90,7 +90,7 @@ export default function LabInventory() {
 
   const [showAddBuild, setShowAddBuild] = useState(false);
   const [newBuild, setNewBuild] = useState({ name: "", location: "", location2: "" });
-  const [buildLines, setBuildLines] = useState([{ id: uid(), partId: "", qty: "1", serialIds: [], variantId: "" }]);
+  const [buildLines, setBuildLines] = useState([{ id: uid(), partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] }]);
   const [buildError, setBuildError] = useState("");
 
   const loadData = async () => {
@@ -117,7 +117,7 @@ export default function LabInventory() {
     if (newPart.has_variants) {
       const variants = newPart.variantsText
         .split(/[\n,]/).map((s) => s.trim()).filter(Boolean)
-        .map((v) => ({ id: uid(), name: v, qty: 0, allocations: [] }));
+        .map((v) => ({ id: uid(), name: v, units: [] }));
       part = {
         id: uid(), name: newPart.name.trim(),
         location: newPart.location.trim() || "Lab", location2: newPart.location2.trim(),
@@ -192,7 +192,7 @@ export default function LabInventory() {
     await updatePart(partId, { serials: part.serials.filter((s) => s.id !== serialId) });
   };
 
-  const addBuildLine = () => setBuildLines((l) => [...l, { id: uid(), partId: "", qty: "1", serialIds: [], variantId: "" }]);
+  const addBuildLine = () => setBuildLines((l) => [...l, { id: uid(), partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] }]);
   const removeBuildLine = (id) => setBuildLines((l) => l.filter((x) => x.id !== id));
   const updateBuildLine = (id, field, value) => setBuildLines((l) => l.map((x) => (x.id === id ? { ...x, [field]: value } : x)));
   const toggleBuildLineSerial = (id, serialId) =>
@@ -209,7 +209,7 @@ export default function LabInventory() {
       const part = parts.find((p) => p.id === l.partId);
       if (!part) continue;
       if (part.has_variants) {
-        if (l.variantId && parseInt(l.qty, 10) > 0) lines.push({ partId: l.partId, qty: parseInt(l.qty, 10), variantId: l.variantId });
+        if (l.variantId && l.unitIds && l.unitIds.length > 0) lines.push({ partId: l.partId, qty: l.unitIds.length, variantId: l.variantId, unitIds: l.unitIds });
       } else if (part.serialized) {
         if (l.serialIds.length > 0) lines.push({ partId: l.partId, qty: l.serialIds.length, serialIds: l.serialIds });
       } else {
@@ -223,7 +223,7 @@ export default function LabInventory() {
       if (!part) continue;
       if (part.has_variants) {
         const variant = (part.variants || []).find((v) => v.id === line.variantId);
-        if (variant && line.qty > variantAvailableQty(variant)) { setBuildError(`Not enough "${part.name} — ${variant.name}" available (${variantAvailableQty(variant)} free).`); return; }
+        if (variant && line.unitIds && line.unitIds.length > variantAvailableQty(variant)) { setBuildError(`Not enough "${part.name} — ${variant.name}" available (${variantAvailableQty(variant)} free).`); return; }
       } else if (line.qty > availableQty(part)) {
         setBuildError(`Not enough "${part.name}" available (${availableQty(part)} free).`); return;
       }
@@ -236,7 +236,7 @@ export default function LabInventory() {
       const line = lines.find((l) => l.partId === part.id);
       if (!line) return part;
       if (part.has_variants) {
-        return { ...part, variants: (part.variants || []).map((v) => v.id === line.variantId ? { ...v, allocations: [...(v.allocations || []), { buildId, qty: line.qty, location: build.location, location2: build.location2 }] } : v) };
+        return { ...part, variants: (part.variants || []).map((v) => v.id === line.variantId ? { ...v, units: (v.units || []).map((u) => (line.unitIds || []).includes(u.id) ? { ...u, allocatedBuildId: buildId } : u) } : v) };
       }
       if (part.serialized) return { ...part, serials: part.serials.map((s) => line.serialIds.includes(s.id) ? { ...s, allocatedBuildId: buildId, location: build.location, location2: build.location2 } : s) };
       return { ...part, allocations: [...(part.allocations || []), { buildId, qty: line.qty, location: build.location, location2: build.location2 }] };
@@ -259,7 +259,7 @@ export default function LabInventory() {
 
   const disassembleBuild = async (buildId) => {
     const updatedParts = parts.map((part) => {
-      if (part.has_variants) return { ...part, variants: (part.variants || []).map((v) => ({ ...v, allocations: (v.allocations || []).filter((a) => a.buildId !== buildId) })) };
+      if (part.has_variants) return { ...part, variants: (part.variants || []).map((v) => ({ ...v, units: (v.units || []).map((u) => u.allocatedBuildId === buildId ? { ...u, allocatedBuildId: null } : u) })) };
       if (part.serialized) return { ...part, serials: (part.serials || []).map((s) => s.allocatedBuildId === buildId ? { ...s, allocatedBuildId: null } : s) };
       return { ...part, allocations: (part.allocations || []).filter((a) => a.buildId !== buildId) };
     });
@@ -284,7 +284,9 @@ export default function LabInventory() {
     if (!build || !part) return;
     const newLines = build.lines.filter((l) => l.partId !== partId);
     let partUpdates = {};
-    if (part.serialized) {
+    if (part.has_variants) {
+      partUpdates.variants = part.variants.map((v) => ({ ...v, units: (v.units || []).map((u) => u.allocatedBuildId === buildId ? { ...u, allocatedBuildId: null } : u) }));
+    } else if (part.serialized) {
       partUpdates.serials = part.serials.map((s) => serialIds.includes(s.id) ? { ...s, allocatedBuildId: null } : s);
     } else {
       partUpdates.allocations = (part.allocations || []).filter((a) => a.buildId !== buildId);
@@ -295,15 +297,22 @@ export default function LabInventory() {
     setBuilds((b) => b.map((x) => x.id === buildId ? { ...x, lines: newLines } : x));
   };
 
-  const addPartToBuild = async (buildId, partId, qty, serialIds) => {
+  const addPartToBuild = async (buildId, partId, qty, serialIds, variantId, unitIds) => {
     const build = builds.find((b) => b.id === buildId);
     const part = parts.find((p) => p.id === partId);
     if (!build || !part) return;
+    if (part.has_variants && (!unitIds || unitIds.length === 0)) return;
     if (part.serialized && serialIds.length === 0) return;
-    if (!part.serialized && (qty <= 0 || qty > availableQty(part))) return;
-    const existingLineIdx = build.lines.findIndex((l) => l.partId === partId);
+    if (!part.serialized && !part.has_variants && (qty <= 0 || qty > availableQty(part))) return;
+    const existingLineIdx = build.lines.findIndex((l) => l.partId === partId && l.variantId === variantId);
     let newLines;
-    if (existingLineIdx >= 0) {
+    if (part.has_variants) {
+      if (existingLineIdx >= 0) {
+        newLines = build.lines.map((l, i) => i === existingLineIdx ? { ...l, unitIds: [...(l.unitIds || []), ...unitIds], qty: l.qty + unitIds.length } : l);
+      } else {
+        newLines = [...build.lines, { partId, variantId, qty: unitIds.length, unitIds }];
+      }
+    } else if (existingLineIdx >= 0) {
       newLines = build.lines.map((l, i) => i === existingLineIdx
         ? part.serialized
           ? { ...l, serialIds: [...l.serialIds, ...serialIds], qty: l.qty + serialIds.length }
@@ -313,7 +322,9 @@ export default function LabInventory() {
       newLines = [...build.lines, part.serialized ? { partId, qty: serialIds.length, serialIds } : { partId, qty }];
     }
     let partUpdates = {};
-    if (part.serialized) {
+    if (part.has_variants) {
+      partUpdates.variants = part.variants.map((v) => v.id === variantId ? { ...v, units: (v.units || []).map((u) => unitIds.includes(u.id) ? { ...u, allocatedBuildId: buildId } : u) } : v);
+    } else if (part.serialized) {
       partUpdates.serials = part.serials.map((s) => serialIds.includes(s.id) ? { ...s, allocatedBuildId: buildId, location: build.location, location2: build.location2 } : s);
     } else {
       partUpdates.allocations = [...(part.allocations || []), { buildId, qty, location: build.location, location2: build.location2 }];
@@ -440,6 +451,33 @@ function EditSerialLocation({ serial, onSave, onCancel }) {
   );
 }
 
+// ---- ADD VARIANT UNIT ----
+function VariantUnitAdd({ part, variant, updatePart }) {
+  const [draft, setDraft] = useState({ location: part.location || "", location2: part.location2 || "" });
+  const [show, setShow] = useState(false);
+  if (!show) return (
+    <button onClick={() => setShow(true)} className="flex items-center gap-1 text-[11px] mt-1" style={{ color: "#5FB88A" }}>
+      <Plus size={10} /> Add unit
+    </button>
+  );
+  return (
+    <div className="flex flex-col gap-1 mt-1">
+      <div className="grid grid-cols-2 gap-1">
+        <input className={`${inputCls} bench-input text-xs py-1`} placeholder="Primary location" value={draft.location} onChange={(e) => setDraft((d) => ({ ...d, location: e.target.value }))} />
+        <input className={`${inputCls} bench-input text-xs py-1`} placeholder="Sub location" value={draft.location2} onChange={(e) => setDraft((d) => ({ ...d, location2: e.target.value }))} />
+      </div>
+      <div className="flex gap-1">
+        <button onClick={() => {
+          updatePart(part.id, { variants: part.variants.map((v) => v.id === variant.id ? { ...v, units: [...(v.units || []), { id: uid(), location: draft.location.trim(), location2: draft.location2.trim(), allocatedBuildId: null }] } : v) });
+          setShow(false);
+          setDraft({ location: part.location || "", location2: part.location2 || "" });
+        }} className="flex items-center gap-1 px-2 py-0.5 text-[11px] rounded" style={{ background: "#5FB88A", color: "#0F1714", fontWeight: 600 }}><Check size={10} /> Add</button>
+        <button onClick={() => setShow(false)} className="px-2 py-0.5 text-[11px] rounded" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
 // ---- PARTS TAB ----
 function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, addPart, deletePart, adjustQty, updatePart, updateSerial, addSerial, removeSerial, builds }) {
   const [expanded, setExpanded] = useState({});
@@ -469,7 +507,7 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
           </div>
           <label className="flex items-center gap-2 mt-3 text-xs cursor-pointer select-none" style={{ color: "#8FA39A" }}>
             <input type="checkbox" checked={newPart.has_variants} onChange={(e) => setNewPart((p) => ({ ...p, has_variants: e.target.checked, serialized: false }))} style={{ accentColor: "#D98A4B" }} />
-            This part has variants (e.g. different RAM sizes, amp ratings)
+            This part has variants (e.g. RAM, amperage etc.)
           </label>
           {newPart.has_variants && (
             <div className="mt-2">
@@ -535,42 +573,83 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                     </div>
                     {/* Variants display */}
                     {part.has_variants && (
-                      <div className="mt-2 flex flex-col gap-1.5">
+                      <div className="mt-2 flex flex-col gap-2">
                         {(part.variants || []).map((v) => {
                           const vAvail = variantAvailableQty(v);
-                          const vUsed = (v.allocations || []).reduce((s, a) => s + a.qty, 0);
+                          const vTotal = (v.units || []).length;
                           return (
                             <div key={v.id} className="pl-2 border-l" style={{ borderColor: "#233029" }}>
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[11px] font-semibold" style={{ color: "#EAF0EC" }}>{v.name}</span>
-                                  <span className="text-[10px]" style={{ color: vAvail === 0 && v.qty > 0 ? "#E0664C" : vAvail === v.qty ? "#5FB88A" : "#D98A4B" }}>
-                                    {vAvail} free · {v.qty} total
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <button onClick={() => updatePart(part.id, { variants: part.variants.map((x) => x.id === v.id ? { ...x, qty: Math.max(vUsed, x.qty - 1) } : x) })} className="w-5 h-5 rounded text-xs flex items-center justify-center" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>−</button>
-                                  <button onClick={() => updatePart(part.id, { variants: part.variants.map((x) => x.id === v.id ? { ...x, qty: x.qty + 1 } : x) })} className="w-5 h-5 rounded text-xs flex items-center justify-center" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>+</button>
-                                </div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-[11px] font-semibold" style={{ color: "#EAF0EC" }}>{v.name}</span>
+                                <span className="text-[10px]" style={{ color: vAvail === 0 && vTotal > 0 ? "#E0664C" : vAvail === vTotal ? "#5FB88A" : "#D98A4B" }}>
+                                  {vAvail} free · {vTotal} total
+                                </span>
                               </div>
-                              {vUsed > 0 && (
-                                <div className="flex flex-col gap-0.5 mt-0.5">
-                                  {(v.allocations || []).map((a) => {
-                                    const b = builds.find((bd) => bd.id === a.buildId);
-                                    return <span key={a.buildId} className="text-[10px]" style={{ color: "#D98A4B" }}>↳ {a.qty} in {b ? b.name : "(deleted)"}{a.location ? ` · ${a.location}${a.location2 ? ` / ${a.location2}` : ""}` : ""}</span>;
-                                  })}
-                                </div>
-                              )}
+                              {(() => {
+                                const locGroups = {};
+                                for (const u of (v.units || [])) {
+                                  const locKey = `${u.location || ""}|||${u.location2 || ""}`;
+                                  if (!locGroups[locKey]) locGroups[locKey] = { location: u.location || "", location2: u.location2 || "", units: [] };
+                                  locGroups[locKey].units.push(u);
+                                }
+                                return Object.values(locGroups).map((group, gi) => {
+                                  const buildGroups = {};
+                                  for (const u of group.units) {
+                                    const bKey = u.allocatedBuildId || "__free__";
+                                    if (!buildGroups[bKey]) buildGroups[bKey] = { buildId: u.allocatedBuildId, units: [] };
+                                    buildGroups[bKey].units.push(u);
+                                  }
+                                  return (
+                                    <div key={gi} className="pl-2 mb-1">
+                                      {(group.location || group.location2) && (
+                                        <div className="flex items-center gap-1 mb-1">
+                                          <MapPin size={10} color="#6B8077" />
+                                          <span className="text-[10px]" style={{ color: "#8FA39A" }}>{group.location}{group.location2 ? ` · ${group.location2}` : ""}</span>
+                                        </div>
+                                      )}
+                                      {Object.values(buildGroups).map((bg, bgi) => {
+                                        const b = bg.buildId ? builds.find((bd) => bd.id === bg.buildId) : null;
+                                        return (
+                                          <div key={bgi} className="pl-2">
+                                            {b && <div className="text-[10px] mb-0.5" style={{ color: "#D98A4B" }}>in {b.name}</div>}
+                                            <div className="flex flex-col gap-0.5">
+                                              {bg.units.map((u) => (
+                                                <div key={u.id} className="flex items-center justify-between gap-2 text-[11px]">
+                                                  <span className="flex items-center gap-1.5">
+                                                    <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: u.allocatedBuildId ? "#D98A4B" : "#5FB88A" }} />
+                                                    <span style={{ color: "#8FA39A" }}>unit</span>
+                                                  </span>
+                                                  {!u.allocatedBuildId && (
+                                                    <button onClick={() => updatePart(part.id, { variants: part.variants.map((x) => x.id === v.id ? { ...x, units: x.units.filter((y) => y.id !== u.id) } : x) })} style={{ color: "#E0664C" }} className="w-4 h-4 flex items-center justify-center"><X size={10} /></button>
+                                                  )}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  );
+                                });
+                              })()}
+                              <VariantUnitAdd part={part} variant={v} updatePart={updatePart} />
                             </div>
                           );
                         })}
-                        <button
-                          onClick={() => updatePart(part.id, { variants: [...(part.variants || []), { id: uid(), name: "", qty: 0, allocations: [] }] })}
-                          className="text-[11px] flex items-center gap-1 mt-0.5"
-                          style={{ color: "#5FB88A" }}
-                        >
-                          <Plus size={11} /> Add variant
-                        </button>
+                        <div className="flex items-center gap-1.5 mt-1 pl-2">
+                          <input
+                            placeholder="New variant name…"
+                            className="text-[11px] bg-transparent outline-none border-b py-0.5"
+                            style={{ color: "#EAF0EC", borderColor: "#2A3A33", width: "150px" }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && e.target.value.trim()) {
+                                updatePart(part.id, { variants: [...(part.variants || []), { id: uid(), name: e.target.value.trim(), units: [] }] });
+                                e.target.value = "";
+                              }
+                            }}
+                          />
+                          <Plus size={11} color="#5FB88A" />
+                        </div>
                       </div>
                     )}
 
@@ -715,7 +794,7 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0">
-                  {!part.serialized && (
+                  {!part.serialized && !part.has_variants && (
                     <>
                       <button onClick={() => adjustQty(part.id, -1)} className="w-6 h-6 rounded text-xs flex items-center justify-center" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>−</button>
                       <span className="text-xs w-5 text-center">{part.qty}</span>
@@ -741,7 +820,7 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
 // ---- EDIT BUILD FORM ----
 function EditBuildForm({ build, onSave, onCancel, parts, partsById, removePartFromBuild, addPartToBuild }) {
   const [draft, setDraft] = useState({ name: build.name, location: build.location || "", location2: build.location2 || "" });
-  const [addLine, setAddLine] = useState({ partId: "", qty: "1", serialIds: [] });
+  const [addLine, setAddLine] = useState({ partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] });
   const [showAdd, setShowAdd] = useState(false);
   const save = () => { if (!draft.name.trim()) return; onSave({ name: draft.name.trim(), location: draft.location.trim() || "Lab", location2: draft.location2.trim() }); };
   const selectedPart = partsById[addLine.partId];
@@ -749,8 +828,12 @@ function EditBuildForm({ build, onSave, onCancel, parts, partsById, removePartFr
     if (!addLine.partId) return;
     const part = partsById[addLine.partId];
     if (!part) return;
-    await addPartToBuild(build.id, addLine.partId, part.serialized ? addLine.serialIds.length : parseInt(addLine.qty, 10) || 0, part.serialized ? addLine.serialIds : []);
-    setAddLine({ partId: "", qty: "1", serialIds: [] });
+    if (part.has_variants) {
+      await addPartToBuild(build.id, addLine.partId, addLine.unitIds.length, [], addLine.variantId, addLine.unitIds);
+    } else {
+      await addPartToBuild(build.id, addLine.partId, part.serialized ? addLine.serialIds.length : parseInt(addLine.qty, 10) || 0, part.serialized ? addLine.serialIds : [], "", []);
+    }
+    setAddLine({ partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] });
     setShowAdd(false);
   };
   return (
@@ -792,8 +875,36 @@ function EditBuildForm({ build, onSave, onCancel, parts, partsById, removePartFr
                 <option key={p.id} value={p.id}>{p.name} ({availableQty(p)} free){p.serialized ? " — serialized" : ""}</option>
               ))}
             </select>
-            {selectedPart && !selectedPart.serialized && (
+            {selectedPart && !selectedPart.serialized && !selectedPart.has_variants && (
               <input type="number" min="1" max={availableQty(selectedPart)} value={addLine.qty} onChange={(e) => setAddLine((l) => ({ ...l, qty: e.target.value }))} className={`${inputCls} bench-input text-xs w-20`} placeholder="qty" />
+            )}
+            {selectedPart && selectedPart.has_variants && (
+              <div className="flex flex-col gap-2 pl-2 border-l" style={{ borderColor: "#233029" }}>
+                <span className="text-[10px]" style={{ color: "#6B8077" }}>Pick units ({(addLine.unitIds || []).length} selected)</span>
+                {(selectedPart.variants || []).filter((v) => variantAvailableQty(v) > 0).map((v) => {
+                  const freeUnits = (v.units || []).filter((u) => !u.allocatedBuildId);
+                  return (
+                    <div key={v.id}>
+                      <div className="text-[11px] font-semibold mb-1" style={{ color: "#EAF0EC" }}>{v.name} ({variantAvailableQty(v)} free)</div>
+                      {freeUnits.map((u) => (
+                        <label key={u.id} className="flex items-center gap-2 text-[11px] cursor-pointer mb-0.5" style={{ color: "#8FA39A" }}>
+                          <input type="checkbox"
+                            checked={addLine.variantId === v.id && (addLine.unitIds || []).includes(u.id)}
+                            onChange={() => setAddLine((l) => ({
+                              ...l, variantId: v.id,
+                              unitIds: (l.variantId === v.id ? l.unitIds || [] : []).includes(u.id)
+                                ? (l.variantId === v.id ? l.unitIds || [] : []).filter((x) => x !== u.id)
+                                : [...(l.variantId === v.id ? l.unitIds || [] : []), u.id]
+                            }))}
+                            style={{ accentColor: "#D98A4B" }}
+                          />
+                          {u.location || "No location"}{u.location2 ? ` · ${u.location2}` : ""}
+                        </label>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
             )}
             {selectedPart && selectedPart.serialized && (
               <div className="flex flex-col gap-1 pl-2 border-l" style={{ borderColor: "#233029" }}>
@@ -808,7 +919,7 @@ function EditBuildForm({ build, onSave, onCancel, parts, partsById, removePartFr
             )}
             <div className="flex gap-1.5">
               <button onClick={handleAddPart} className="flex items-center gap-1 px-2 py-1 text-[11px] rounded" style={{ background: "#5FB88A", color: "#0F1714", fontWeight: 600 }}><Plus size={10} /> Add</button>
-              <button onClick={() => { setShowAdd(false); setAddLine({ partId: "", qty: "1", serialIds: [] }); }} className="px-2 py-1 text-[11px] rounded" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>Cancel</button>
+              <button onClick={() => { setShowAdd(false); setAddLine({ partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] }); }} className="px-2 py-1 text-[11px] rounded" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>Cancel</button>
             </div>
           </div>
         ) : (
@@ -856,23 +967,37 @@ function BuildsTab({ builds, parts, partsById, showAddBuild, setShowAddBuild, ne
                         </option>
                       ))}
                     </select>
-                    {selected && !selected.serialized && (
+                    {selected && !selected.serialized && !selected.has_variants && (
                       <input type="number" min="1" max={avail ?? undefined} value={line.qty} onChange={(e) => updateBuildLine(line.id, "qty", e.target.value)} className={`${inputCls} bench-input w-16`} />
                     )}
                     <button onClick={() => removeBuildLine(line.id)} style={{ color: "#6B8077" }}><X size={14} /></button>
                   </div>
                   {selected && selected.has_variants && (
-                    <div className="ml-1 pl-2 flex flex-col gap-1 border-l" style={{ borderColor: "#233029" }}>
-                      <span className="text-[10px]" style={{ color: "#6B8077" }}>Pick variant</span>
-                      {(selected.variants || []).filter((v) => variantAvailableQty(v) > 0).map((v) => (
-                        <label key={v.id} className="flex items-center gap-2 text-[11px] cursor-pointer" style={{ color: "#EAF0EC" }}>
-                          <input type="radio" name={`variant-${line.id}`} checked={line.variantId === v.id} onChange={() => updateBuildLine(line.id, "variantId", v.id)} style={{ accentColor: "#D98A4B" }} />
-                          {v.name} ({variantAvailableQty(v)} free)
-                        </label>
-                      ))}
-                      {line.variantId && (
-                        <input type="number" min="1" max={variantAvailableQty((selected.variants || []).find((v) => v.id === line.variantId) || {})} value={line.qty} onChange={(e) => updateBuildLine(line.id, "qty", e.target.value)} className={`${inputCls} bench-input w-16 mt-1`} placeholder="qty" />
-                      )}
+                    <div className="ml-1 pl-2 flex flex-col gap-2 border-l" style={{ borderColor: "#233029" }}>
+                      <span className="text-[10px]" style={{ color: "#6B8077" }}>Pick units ({(line.unitIds || []).length} selected)</span>
+                      {(selected.variants || []).filter((v) => variantAvailableQty(v) > 0).map((v) => {
+                        const freeUnits = (v.units || []).filter((u) => !u.allocatedBuildId);
+                        return (
+                          <div key={v.id}>
+                            <div className="text-[11px] font-semibold mb-1" style={{ color: "#EAF0EC" }}>{v.name} ({variantAvailableQty(v)} free)</div>
+                            {freeUnits.map((u) => (
+                              <label key={u.id} className="flex items-center gap-2 text-[11px] cursor-pointer mb-0.5" style={{ color: "#8FA39A" }}>
+                                <input type="checkbox"
+                                  checked={line.variantId === v.id && (line.unitIds || []).includes(u.id)}
+                                  onChange={() => {
+                                    updateBuildLine(line.id, "variantId", v.id);
+                                    const current = line.variantId === v.id ? (line.unitIds || []) : [];
+                                    const newUnitIds = current.includes(u.id) ? current.filter((x) => x !== u.id) : [...current, u.id];
+                                    updateBuildLine(line.id, "unitIds", newUnitIds);
+                                  }}
+                                  style={{ accentColor: "#D98A4B" }}
+                                />
+                                {u.location || "No location"}{u.location2 ? ` · ${u.location2}` : ""}
+                              </label>
+                            ))}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                   {selected && selected.serialized && (
@@ -924,9 +1049,13 @@ function BuildsTab({ builds, parts, partsById, showAddBuild, setShowAddBuild, ne
                       const serialNames = line.serialIds && part
                         ? line.serialIds.map((sid) => part.serials?.find((s) => s.id === sid)?.serial).filter(Boolean)
                         : null;
+                      const variantName = line.variantId && part
+                        ? part.variants?.find((v) => v.id === line.variantId)?.name
+                        : null;
                       return (
-                        <span key={line.partId} className="text-[11px]" style={{ color: "#6B8077" }}>
+                        <span key={`${line.partId}-${line.variantId || ""}`} className="text-[11px]" style={{ color: "#6B8077" }}>
                           ↳ {line.qty}× {part ? part.name : "(deleted part)"}
+                          {variantName && <span style={{ color: "#8FA39A" }}> — {variantName}</span>}
                           {serialNames && serialNames.length > 0 && <span style={{ color: "#8FA39A" }}> (SN: {serialNames.join(", ")})</span>}
                         </span>
                       );
