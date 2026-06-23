@@ -458,7 +458,7 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
           const avail = availableQty(part);
           const used = allocatedQty(part);
           const total = totalQty(part);
-          const isOpen = !!expanded[part.id];
+          const isOpen = expanded[part.id] === undefined ? true : !!expanded[part.id];
           const isEditing = editingPartId === part.id;
 
           return (
@@ -525,7 +525,7 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                       <div className="mt-2">
                         <button onClick={() => setExpanded((e) => ({ ...e, [part.id]: !e[part.id] }))} className="flex items-center gap-1 text-[11px]" style={{ color: "#5FB88A" }}>
                           {isOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                          {isOpen ? "Hide serials" : `View ${total} serial${total === 1 ? "" : "s"}`}
+                          {isOpen ? `Hide serials` : `Show ${total} serial${total === 1 ? "" : "s"}`}
                         </button>
                         {isOpen && (
                           <div className="mt-2 flex flex-col gap-3 pl-1 border-l" style={{ borderColor: "#233029" }}>
