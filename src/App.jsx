@@ -528,50 +528,73 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                           {isOpen ? "Hide serials" : `View ${total} serial${total === 1 ? "" : "s"}`}
                         </button>
                         {isOpen && (
-                          <div className="mt-2 flex flex-col gap-2 pl-1 border-l" style={{ borderColor: "#233029" }}>
-                            {(part.serials || []).map((s) => {
-                              const b = s.allocatedBuildId ? builds.find((bd) => bd.id === s.allocatedBuildId) : null;
-                              const isEditingSerial = editingSerialId === s.id;
-                              return (
-                                <div key={s.id} className="pl-2 flex flex-col gap-0.5">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <span className="flex items-center gap-1.5 text-[11px]">
-                                      <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ background: s.allocatedBuildId ? "#D98A4B" : "#5FB88A" }} />
-                                      <span style={{ color: "#EAF0EC" }}>{s.serial}</span>
-                                      {b && <span style={{ color: "#6B8077" }}>— in {b.name}</span>}
-                                    </span>
-                                    <div className="flex items-center gap-1 shrink-0">
-                                      <button
-                                        onClick={() => setEditingSerialId(isEditingSerial ? null : s.id)}
-                                        className="w-5 h-5 rounded flex items-center justify-center"
-                                        style={{ color: isEditingSerial ? "#5FB88A" : "#6B8077", border: "1px solid #2A3A33" }}
-                                        title="Edit location"
-                                      >
-                                        <Pencil size={10} />
-                                      </button>
-                                      {!s.allocatedBuildId && (
-                                        <button onClick={() => removeSerial(part.id, s.id)} style={{ color: "#E0664C" }} className="w-5 h-5 flex items-center justify-center">
-                                          <X size={11} />
-                                        </button>
-                                      )}
+                          <div className="mt-2 flex flex-col gap-3 pl-1 border-l" style={{ borderColor: "#233029" }}>
+                            {(() => {
+                              // Group serials by location
+                              const locGroups = {};
+                              for (const s of (part.serials || [])) {
+                                const locKey = `${s.location || ""}|||${s.location2 || ""}`;
+                                if (!locGroups[locKey]) locGroups[locKey] = { location: s.location || "", location2: s.location2 || "", serials: [] };
+                                locGroups[locKey].serials.push(s);
+                              }
+                              return Object.values(locGroups).map((group, gi) => {
+                                // Within each location group, group by build
+                                const buildGroups = {};
+                                for (const s of group.serials) {
+                                  const bKey = s.allocatedBuildId || "__free__";
+                                  if (!buildGroups[bKey]) buildGroups[bKey] = { buildId: s.allocatedBuildId, serials: [] };
+                                  buildGroups[bKey].serials.push(s);
+                                }
+                                return (
+                                  <div key={gi} className="pl-2">
+                                    {(group.location || group.location2) && (
+                                      <div className="flex items-center gap-1 mb-1.5">
+                                        <MapPin size={11} color="#6B8077" />
+                                        <span className="text-[10px]" style={{ color: "#8FA39A" }}>
+                                          {group.location}{group.location2 ? ` · ${group.location2}` : ""}
+                                        </span>
+                                      </div>
+                                    )}
+                                    <div className="flex flex-col gap-2 pl-2">
+                                      {Object.values(buildGroups).map((bg, bgi) => {
+                                        const b = bg.buildId ? builds.find((bd) => bd.id === bg.buildId) : null;
+                                        return (
+                                          <div key={bgi}>
+                                            {b && <div className="text-[10px] mb-1" style={{ color: "#D98A4B" }}>in {b.name}</div>}
+                                            <div className="flex flex-col gap-1">
+                                              {bg.serials.map((s) => {
+                                                const isEditingSerial = editingSerialId === s.id;
+                                                return (
+                                                  <div key={s.id} className="flex flex-col gap-0.5">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                      <span className="flex items-center gap-1.5 text-[11px]">
+                                                        <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ background: s.allocatedBuildId ? "#D98A4B" : "#5FB88A" }} />
+                                                        <span style={{ color: "#EAF0EC" }}>{s.serial}</span>
+                                                      </span>
+                                                      <div className="flex items-center gap-1 shrink-0">
+                                                        <button onClick={() => setEditingSerialId(isEditingSerial ? null : s.id)} className="w-5 h-5 rounded flex items-center justify-center" style={{ color: isEditingSerial ? "#5FB88A" : "#6B8077", border: "1px solid #2A3A33" }} title="Edit location">
+                                                          <Pencil size={10} />
+                                                        </button>
+                                                        {!s.allocatedBuildId && (
+                                                          <button onClick={() => removeSerial(part.id, s.id)} style={{ color: "#E0664C" }} className="w-5 h-5 flex items-center justify-center"><X size={11} /></button>
+                                                        )}
+                                                      </div>
+                                                    </div>
+                                                    {isEditingSerial && (
+                                                      <EditSerialLocation serial={s} onSave={async (updates) => { await updateSerial(part.id, s.id, updates); setEditingSerialId(null); }} onCancel={() => setEditingSerialId(null)} />
+                                                    )}
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
                                     </div>
                                   </div>
-                                  {/* Per-serial location */}
-                                  {!isEditingSerial && (s.location || s.location2) && (
-                                    <div className="pl-4 flex flex-col gap-0.5">
-                                      {s.location && <span className="text-[10px]" style={{ color: "#5C6E66" }}>📍 {s.location}{s.location2 ? ` · ${s.location2}` : ""}</span>}
-                                    </div>
-                                  )}
-                                  {isEditingSerial && (
-                                    <EditSerialLocation
-                                      serial={s}
-                                      onSave={async (updates) => { await updateSerial(part.id, s.id, updates); setEditingSerialId(null); }}
-                                      onCancel={() => setEditingSerialId(null)}
-                                    />
-                                  )}
-                                </div>
-                              );
-                            })}
+                                );
+                              });
+                            })()}
                             {/* Add new serial */}
                             <div className="flex items-center gap-1.5 pl-2">
                               <input
