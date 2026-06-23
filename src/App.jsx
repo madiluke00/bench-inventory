@@ -21,12 +21,19 @@ function useFonts() {
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
-function totalQty(part) { return part.serialized ? (part.serials || []).length : part.qty; }
+function totalQty(part) {
+  if (part.has_variants) return (part.variants || []).reduce((s, v) => s + v.qty, 0);
+  return part.serialized ? (part.serials || []).length : part.qty;
+}
 function allocatedQty(part) {
+  if (part.has_variants) return (part.variants || []).reduce((s, v) => s + (v.allocations || []).reduce((a, b) => a + b.qty, 0), 0);
   if (part.serialized) return (part.serials || []).filter((s) => s.allocatedBuildId).length;
   return (part.allocations || []).reduce((s, a) => s + a.qty, 0);
 }
 function availableQty(part) { return totalQty(part) - allocatedQty(part); }
+function variantAvailableQty(variant) {
+  return variant.qty - (variant.allocations || []).reduce((s, a) => s + a.qty, 0);
+}
 
 function StatusDot({ part }) {
   const avail = availableQty(part);
@@ -79,11 +86,11 @@ export default function LabInventory() {
   const [tab, setTab] = useState("parts");
 
   const [showAddPart, setShowAddPart] = useState(false);
-  const [newPart, setNewPart] = useState({ name: "", qty: "1", location: "", location2: "", category: "", serialized: false, serialsText: "" });
+  const [newPart, setNewPart] = useState({ name: "", qty: "1", location: "", location2: "", category: "", serialized: false, serialsText: "", has_variants: false, variantsText: "" });
 
   const [showAddBuild, setShowAddBuild] = useState(false);
   const [newBuild, setNewBuild] = useState({ name: "", location: "", location2: "" });
-  const [buildLines, setBuildLines] = useState([{ id: uid(), partId: "", qty: "1", serialIds: [] }]);
+  const [buildLines, setBuildLines] = useState([{ id: uid(), partId: "", qty: "1", serialIds: [], variantId: "" }]);
   const [buildError, setBuildError] = useState("");
 
   const loadData = async () => {
@@ -106,24 +113,38 @@ export default function LabInventory() {
 
   const addPart = async () => {
     if (!newPart.name.trim()) return;
-    const part = newPart.serialized
-      ? {
-          id: uid(), name: newPart.name.trim(),
-          location: newPart.location.trim() || "Lab", location2: newPart.location2.trim(),
-          category: newPart.category.trim(), serialized: true, qty: 0, allocations: [],
-          // each serial inherits the part's location by default, can be overridden individually
-          serials: newPart.serialsText.split(/[\n,]/).map((s) => s.trim()).filter(Boolean)
-            .map((s) => ({ id: uid(), serial: s, allocatedBuildId: null, location: newPart.location.trim() || "Lab", location2: newPart.location2.trim() })),
-        }
-      : {
-          id: uid(), name: newPart.name.trim(), qty: Math.max(0, parseInt(newPart.qty, 10) || 0),
-          location: newPart.location.trim() || "Lab", location2: newPart.location2.trim(),
-          category: newPart.category.trim(), serialized: false, allocations: [], serials: [],
-        };
+    let part;
+    if (newPart.has_variants) {
+      const variants = newPart.variantsText
+        .split(/[\n,]/).map((s) => s.trim()).filter(Boolean)
+        .map((v) => ({ id: uid(), name: v, qty: 0, allocations: [] }));
+      part = {
+        id: uid(), name: newPart.name.trim(),
+        location: newPart.location.trim() || "Lab", location2: newPart.location2.trim(),
+        category: newPart.category.trim(), has_variants: true, variants,
+        serialized: false, qty: 0, allocations: [], serials: [],
+      };
+    } else if (newPart.serialized) {
+      part = {
+        id: uid(), name: newPart.name.trim(),
+        location: newPart.location.trim() || "Lab", location2: newPart.location2.trim(),
+        category: newPart.category.trim(), serialized: true, qty: 0, allocations: [],
+        has_variants: false, variants: [],
+        serials: newPart.serialsText.split(/[\n,]/).map((s) => s.trim()).filter(Boolean)
+          .map((s) => ({ id: uid(), serial: s, allocatedBuildId: null, location: newPart.location.trim() || "Lab", location2: newPart.location2.trim() })),
+      };
+    } else {
+      part = {
+        id: uid(), name: newPart.name.trim(), qty: Math.max(0, parseInt(newPart.qty, 10) || 0),
+        location: newPart.location.trim() || "Lab", location2: newPart.location2.trim(),
+        category: newPart.category.trim(), serialized: false, allocations: [], serials: [],
+        has_variants: false, variants: [],
+      };
+    }
     const { error } = await supabase.from("parts").insert(part);
     if (error) { alert("Failed to save part: " + error.message); return; }
     setParts((p) => [...p, part]);
-    setNewPart({ name: "", qty: "1", location: "", location2: "", category: "", serialized: false, serialsText: "" });
+    setNewPart({ name: "", qty: "1", location: "", location2: "", category: "", serialized: false, serialsText: "", has_variants: false, variantsText: "" });
     setShowAddPart(false);
   };
 
@@ -171,7 +192,7 @@ export default function LabInventory() {
     await updatePart(partId, { serials: part.serials.filter((s) => s.id !== serialId) });
   };
 
-  const addBuildLine = () => setBuildLines((l) => [...l, { id: uid(), partId: "", qty: "1", serialIds: [] }]);
+  const addBuildLine = () => setBuildLines((l) => [...l, { id: uid(), partId: "", qty: "1", serialIds: [], variantId: "" }]);
   const removeBuildLine = (id) => setBuildLines((l) => l.filter((x) => x.id !== id));
   const updateBuildLine = (id, field, value) => setBuildLines((l) => l.map((x) => (x.id === id ? { ...x, [field]: value } : x)));
   const toggleBuildLineSerial = (id, serialId) =>
@@ -187,13 +208,25 @@ export default function LabInventory() {
       if (!l.partId) continue;
       const part = parts.find((p) => p.id === l.partId);
       if (!part) continue;
-      if (part.serialized) { if (l.serialIds.length > 0) lines.push({ partId: l.partId, qty: l.serialIds.length, serialIds: l.serialIds }); }
-      else { const qty = parseInt(l.qty, 10) || 0; if (qty > 0) lines.push({ partId: l.partId, qty }); }
+      if (part.has_variants) {
+        if (l.variantId && parseInt(l.qty, 10) > 0) lines.push({ partId: l.partId, qty: parseInt(l.qty, 10), variantId: l.variantId });
+      } else if (part.serialized) {
+        if (l.serialIds.length > 0) lines.push({ partId: l.partId, qty: l.serialIds.length, serialIds: l.serialIds });
+      } else {
+        const qty = parseInt(l.qty, 10) || 0;
+        if (qty > 0) lines.push({ partId: l.partId, qty });
+      }
     }
     if (lines.length === 0) { setBuildError("Add at least one part to the build."); return; }
     for (const line of lines) {
       const part = parts.find((p) => p.id === line.partId);
-      if (part && line.qty > availableQty(part)) { setBuildError(`Not enough "${part.name}" available (${availableQty(part)} free).`); return; }
+      if (!part) continue;
+      if (part.has_variants) {
+        const variant = (part.variants || []).find((v) => v.id === line.variantId);
+        if (variant && line.qty > variantAvailableQty(variant)) { setBuildError(`Not enough "${part.name} — ${variant.name}" available (${variantAvailableQty(variant)} free).`); return; }
+      } else if (line.qty > availableQty(part)) {
+        setBuildError(`Not enough "${part.name}" available (${availableQty(part)} free).`); return;
+      }
     }
     const buildId = uid();
     const build = { id: buildId, name: newBuild.name.trim(), location: newBuild.location.trim() || "Lab", location2: newBuild.location2.trim(), lines, created_at: new Date().toISOString() };
@@ -202,14 +235,19 @@ export default function LabInventory() {
     const updatedParts = parts.map((part) => {
       const line = lines.find((l) => l.partId === part.id);
       if (!line) return part;
+      if (part.has_variants) {
+        return { ...part, variants: (part.variants || []).map((v) => v.id === line.variantId ? { ...v, allocations: [...(v.allocations || []), { buildId, qty: line.qty, location: build.location, location2: build.location2 }] } : v) };
+      }
       if (part.serialized) return { ...part, serials: part.serials.map((s) => line.serialIds.includes(s.id) ? { ...s, allocatedBuildId: buildId, location: build.location, location2: build.location2 } : s) };
       return { ...part, allocations: [...(part.allocations || []), { buildId, qty: line.qty, location: build.location, location2: build.location2 }] };
     });
     for (const part of updatedParts) {
       const orig = parts.find((p) => p.id === part.id);
+      if (part.has_variants && JSON.stringify(part.variants) !== JSON.stringify(orig.variants))
+        await supabase.from("parts").update({ variants: part.variants }).eq("id", part.id);
       if (part.serialized && JSON.stringify(part.serials) !== JSON.stringify(orig.serials))
         await supabase.from("parts").update({ serials: part.serials }).eq("id", part.id);
-      if (!part.serialized && JSON.stringify(part.allocations) !== JSON.stringify(orig.allocations))
+      if (!part.serialized && !part.has_variants && JSON.stringify(part.allocations) !== JSON.stringify(orig.allocations))
         await supabase.from("parts").update({ allocations: part.allocations }).eq("id", part.id);
     }
     setParts(updatedParts);
@@ -221,14 +259,17 @@ export default function LabInventory() {
 
   const disassembleBuild = async (buildId) => {
     const updatedParts = parts.map((part) => {
+      if (part.has_variants) return { ...part, variants: (part.variants || []).map((v) => ({ ...v, allocations: (v.allocations || []).filter((a) => a.buildId !== buildId) })) };
       if (part.serialized) return { ...part, serials: (part.serials || []).map((s) => s.allocatedBuildId === buildId ? { ...s, allocatedBuildId: null } : s) };
       return { ...part, allocations: (part.allocations || []).filter((a) => a.buildId !== buildId) };
     });
     for (const part of updatedParts) {
       const orig = parts.find((p) => p.id === part.id);
+      if (part.has_variants && JSON.stringify(part.variants) !== JSON.stringify(orig.variants))
+        await supabase.from("parts").update({ variants: part.variants }).eq("id", part.id);
       if (part.serialized && JSON.stringify(part.serials) !== JSON.stringify(orig.serials))
         await supabase.from("parts").update({ serials: part.serials }).eq("id", part.id);
-      if (!part.serialized && JSON.stringify(part.allocations) !== JSON.stringify(orig.allocations))
+      if (!part.serialized && !part.has_variants && JSON.stringify(part.allocations) !== JSON.stringify(orig.allocations))
         await supabase.from("parts").update({ allocations: part.allocations }).eq("id", part.id);
     }
     const { error } = await supabase.from("builds").delete().eq("id", buildId);
@@ -427,10 +468,26 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
             {!newPart.serialized && <Field label="Quantity"><input type="number" min="0" className={`${inputCls} bench-input`} value={newPart.qty} onChange={(e) => setNewPart((p) => ({ ...p, qty: e.target.value }))} /></Field>}
           </div>
           <label className="flex items-center gap-2 mt-3 text-xs cursor-pointer select-none" style={{ color: "#8FA39A" }}>
+            <input type="checkbox" checked={newPart.has_variants} onChange={(e) => setNewPart((p) => ({ ...p, has_variants: e.target.checked, serialized: false }))} style={{ accentColor: "#D98A4B" }} />
+            This part has variants (e.g. different RAM sizes, amp ratings)
+          </label>
+          {newPart.has_variants && (
+            <div className="mt-2">
+              <Field label="Variant names (one per line, or comma-separated)">
+                <textarea className={`${inputCls} bench-input`} rows={3} placeholder={"1GB RAM\n4GB RAM\n8GB RAM"} value={newPart.variantsText} onChange={(e) => setNewPart((p) => ({ ...p, variantsText: e.target.value }))} />
+              </Field>
+              <p className="text-[10px] mt-1" style={{ color: "#6B8077" }}>
+                {newPart.variantsText.split(/[\n,]/).map((s) => s.trim()).filter(Boolean).length} variants — you can set quantities and add more after saving.
+              </p>
+            </div>
+          )}
+          {!newPart.has_variants && (
+          <label className="flex items-center gap-2 mt-2 text-xs cursor-pointer select-none" style={{ color: "#8FA39A" }}>
             <input type="checkbox" checked={newPart.serialized} onChange={(e) => setNewPart((p) => ({ ...p, serialized: e.target.checked }))} style={{ accentColor: "#D98A4B" }} />
             This part has individual serial numbers
           </label>
-          {newPart.serialized && (
+          )}
+          {newPart.serialized && !newPart.has_variants && (
             <div className="mt-2">
               <Field label="Serial numbers (one per line, or comma-separated)">
                 <textarea className={`${inputCls} bench-input`} rows={3} placeholder={"SN-001\nSN-002"} value={newPart.serialsText} onChange={(e) => setNewPart((p) => ({ ...p, serialsText: e.target.value }))} />
@@ -476,6 +533,47 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                       {avail} available · {total} total
                       {used > 0 && <span style={{ color: avail === 0 ? "#E0664C" : "#D98A4B" }}> · {used} allocated</span>}
                     </div>
+                    {/* Variants display */}
+                    {part.has_variants && (
+                      <div className="mt-2 flex flex-col gap-1.5">
+                        {(part.variants || []).map((v) => {
+                          const vAvail = variantAvailableQty(v);
+                          const vUsed = (v.allocations || []).reduce((s, a) => s + a.qty, 0);
+                          return (
+                            <div key={v.id} className="pl-2 border-l" style={{ borderColor: "#233029" }}>
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[11px] font-semibold" style={{ color: "#EAF0EC" }}>{v.name}</span>
+                                  <span className="text-[10px]" style={{ color: vAvail === 0 && v.qty > 0 ? "#E0664C" : vAvail === v.qty ? "#5FB88A" : "#D98A4B" }}>
+                                    {vAvail} free · {v.qty} total
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <button onClick={() => updatePart(part.id, { variants: part.variants.map((x) => x.id === v.id ? { ...x, qty: Math.max(vUsed, x.qty - 1) } : x) })} className="w-5 h-5 rounded text-xs flex items-center justify-center" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>−</button>
+                                  <button onClick={() => updatePart(part.id, { variants: part.variants.map((x) => x.id === v.id ? { ...x, qty: x.qty + 1 } : x) })} className="w-5 h-5 rounded text-xs flex items-center justify-center" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>+</button>
+                                </div>
+                              </div>
+                              {vUsed > 0 && (
+                                <div className="flex flex-col gap-0.5 mt-0.5">
+                                  {(v.allocations || []).map((a) => {
+                                    const b = builds.find((bd) => bd.id === a.buildId);
+                                    return <span key={a.buildId} className="text-[10px]" style={{ color: "#D98A4B" }}>↳ {a.qty} in {b ? b.name : "(deleted)"}{a.location ? ` · ${a.location}${a.location2 ? ` / ${a.location2}` : ""}` : ""}</span>;
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                        <button
+                          onClick={() => updatePart(part.id, { variants: [...(part.variants || []), { id: uid(), name: "", qty: 0, allocations: [] }] })}
+                          className="text-[11px] flex items-center gap-1 mt-0.5"
+                          style={{ color: "#5FB88A" }}
+                        >
+                          <Plus size={11} /> Add variant
+                        </button>
+                      </div>
+                    )}
+
                     {/* Smart location display */}
                     {part.serialized ? (
                       used === 0 && <LocationDisplay location={part.location} location2={part.location2} />
@@ -763,6 +861,20 @@ function BuildsTab({ builds, parts, partsById, showAddBuild, setShowAddBuild, ne
                     )}
                     <button onClick={() => removeBuildLine(line.id)} style={{ color: "#6B8077" }}><X size={14} /></button>
                   </div>
+                  {selected && selected.has_variants && (
+                    <div className="ml-1 pl-2 flex flex-col gap-1 border-l" style={{ borderColor: "#233029" }}>
+                      <span className="text-[10px]" style={{ color: "#6B8077" }}>Pick variant</span>
+                      {(selected.variants || []).filter((v) => variantAvailableQty(v) > 0).map((v) => (
+                        <label key={v.id} className="flex items-center gap-2 text-[11px] cursor-pointer" style={{ color: "#EAF0EC" }}>
+                          <input type="radio" name={`variant-${line.id}`} checked={line.variantId === v.id} onChange={() => updateBuildLine(line.id, "variantId", v.id)} style={{ accentColor: "#D98A4B" }} />
+                          {v.name} ({variantAvailableQty(v)} free)
+                        </label>
+                      ))}
+                      {line.variantId && (
+                        <input type="number" min="1" max={variantAvailableQty((selected.variants || []).find((v) => v.id === line.variantId) || {})} value={line.qty} onChange={(e) => updateBuildLine(line.id, "qty", e.target.value)} className={`${inputCls} bench-input w-16 mt-1`} placeholder="qty" />
+                      )}
+                    </div>
+                  )}
                   {selected && selected.serialized && (
                     <div className="ml-1 pl-2 flex flex-col gap-1 border-l" style={{ borderColor: "#233029" }}>
                       <span className="text-[10px]" style={{ color: "#6B8077" }}>Pick specific units ({line.serialIds.length} selected)</span>
