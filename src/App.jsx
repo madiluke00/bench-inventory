@@ -476,22 +476,44 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                       {avail} available · {total} total
                       {used > 0 && <span style={{ color: "#D98A4B" }}> · {used} allocated</span>}
                     </div>
-                    {!part.serialized && used > 0 && (
-                      <div className="mt-1 flex flex-col gap-0.5">
-                        {(part.allocations || []).map((a) => {
-                          const b = builds.find((bd) => bd.id === a.buildId);
-                          return (
-  <div key={a.buildId} className="text-[11px]" style={{ color: "#6B8077" }}>
-    ↳ {a.qty} used in {b ? b.name : "(deleted build)"}
-    {a.location && <span style={{ color: "#5C6E66" }}> · {a.location}{a.location2 ? ` / ${a.location2}` : ""}</span>}
-  </div>
-);
-                        })}
+                    {/* Smart location display */}
+                    {part.serialized ? (
+                      used === 0 && <LocationDisplay location={part.location} location2={part.location2} />
+                    ) : used === 0 ? (
+                      <LocationDisplay location={part.location} location2={part.location2} />
+                    ) : (
+                      <div className="mt-1.5 flex flex-col gap-1.5">
+                        {(() => {
+                          const groups = {};
+                          for (const a of (part.allocations || [])) {
+                            const loc = a.location || part.location || "";
+                            const loc2 = a.location2 || part.location2 || "";
+                            const key = `${loc}|||${loc2}`;
+                            if (!groups[key]) groups[key] = { location: loc, location2: loc2, allocatedQty: 0, buildNames: [] };
+                            groups[key].allocatedQty += a.qty;
+                            const b = builds.find((bd) => bd.id === a.buildId);
+                            groups[key].buildNames.push(b ? b.name : "(deleted)");
+                          }
+                          if (avail > 0) {
+                            const loc = part.location || "";
+                            const loc2 = part.location2 || "";
+                            const key = `${loc}|||${loc2}`;
+                            if (!groups[key]) groups[key] = { location: loc, location2: loc2, allocatedQty: 0, buildNames: [] };
+                            groups[key].freeQty = avail;
+                          }
+                          return Object.values(groups).map((g, i) => (
+                            <div key={i} className="text-[11px]">
+                              <div className="flex items-center gap-1">
+                                <MapPin size={11} color="#6B8077" />
+                                <span style={{ color: "#8FA39A" }}>{g.location}{g.location2 ? ` · ${g.location2}` : ""}</span>
+                              </div>
+                              {g.freeQty > 0 && <div className="pl-4 text-[10px]" style={{ color: "#5FB88A" }}>↳ {g.freeQty} available</div>}
+                              {g.allocatedQty > 0 && <div className="pl-4 text-[10px]" style={{ color: "#D98A4B" }}>↳ {g.allocatedQty} in {g.buildNames.join(", ")}</div>}
+                            </div>
+                          ));
+                        })()}
                       </div>
                     )}
-
-                    {/* Part-level locations (shown for non-serialized, or as default for serialized) */}
-                    <LocationDisplay location={part.location} location2={part.location2} />
 
                     {/* Edit form */}
                     {isEditing && (
