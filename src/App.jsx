@@ -202,8 +202,8 @@ export default function LabInventory() {
     const updatedParts = parts.map((part) => {
       const line = lines.find((l) => l.partId === part.id);
       if (!line) return part;
-      if (part.serialized) return { ...part, serials: part.serials.map((s) => line.serialIds.includes(s.id) ? { ...s, allocatedBuildId: buildId } : s) };
-      return { ...part, allocations: [...(part.allocations || []), { buildId, qty: line.qty }] };
+      if (part.serialized) return { ...part, serials: part.serials.map((s) => line.serialIds.includes(s.id) ? { ...s, allocatedBuildId: buildId, location: build.location, location2: build.location2 } : s) };
+      return { ...part, allocations: [...(part.allocations || []), { buildId, qty: line.qty, location: build.location, location2: build.location2 }] };
     });
     for (const part of updatedParts) {
       const orig = parts.find((p) => p.id === part.id);
@@ -237,6 +237,51 @@ export default function LabInventory() {
     setBuilds((b) => b.filter((x) => x.id !== buildId));
   };
 
+  const removePartFromBuild = async (buildId, partId, serialIds) => {
+    const build = builds.find((b) => b.id === buildId);
+    const part = parts.find((p) => p.id === partId);
+    if (!build || !part) return;
+    const newLines = build.lines.filter((l) => l.partId !== partId);
+    let partUpdates = {};
+    if (part.serialized) {
+      partUpdates.serials = part.serials.map((s) => serialIds.includes(s.id) ? { ...s, allocatedBuildId: null } : s);
+    } else {
+      partUpdates.allocations = (part.allocations || []).filter((a) => a.buildId !== buildId);
+    }
+    await supabase.from("builds").update({ lines: newLines }).eq("id", buildId);
+    await supabase.from("parts").update(partUpdates).eq("id", partId);
+    setParts((p) => p.map((x) => x.id === partId ? { ...x, ...partUpdates } : x));
+    setBuilds((b) => b.map((x) => x.id === buildId ? { ...x, lines: newLines } : x));
+  };
+
+  const addPartToBuild = async (buildId, partId, qty, serialIds) => {
+    const build = builds.find((b) => b.id === buildId);
+    const part = parts.find((p) => p.id === partId);
+    if (!build || !part) return;
+    if (part.serialized && serialIds.length === 0) return;
+    if (!part.serialized && (qty <= 0 || qty > availableQty(part))) return;
+    const existingLineIdx = build.lines.findIndex((l) => l.partId === partId);
+    let newLines;
+    if (existingLineIdx >= 0) {
+      newLines = build.lines.map((l, i) => i === existingLineIdx
+        ? part.serialized
+          ? { ...l, serialIds: [...l.serialIds, ...serialIds], qty: l.qty + serialIds.length }
+          : { ...l, qty: l.qty + qty }
+        : l);
+    } else {
+      newLines = [...build.lines, part.serialized ? { partId, qty: serialIds.length, serialIds } : { partId, qty }];
+    }
+    let partUpdates = {};
+    if (part.serialized) {
+      partUpdates.serials = part.serials.map((s) => serialIds.includes(s.id) ? { ...s, allocatedBuildId: buildId, location: build.location, location2: build.location2 } : s);
+    } else {
+      partUpdates.allocations = [...(part.allocations || []), { buildId, qty, location: build.location, location2: build.location2 }];
+    }
+    await supabase.from("builds").update({ lines: newLines }).eq("id", buildId);
+    await supabase.from("parts").update(partUpdates).eq("id", partId);
+    setParts((p) => p.map((x) => x.id === partId ? { ...x, ...partUpdates } : x));
+    setBuilds((b) => b.map((x) => x.id === buildId ? { ...x, lines: newLines } : x));
+  };
   const updateBuild = async (buildId, updates) => {
     const { error } = await supabase.from("builds").update(updates).eq("id", buildId);
     if (error) return;
@@ -303,6 +348,7 @@ export default function LabInventory() {
             removeBuildLine={removeBuildLine} updateBuildLine={updateBuildLine}
             toggleBuildLineSerial={toggleBuildLineSerial} createBuild={createBuild}
             buildError={buildError} disassembleBuild={disassembleBuild} updateBuild={updateBuild}
+            removePartFromBuild={removePartFromBuild} addPartToBuild={addPartToBuild}
           />
         )}
       </div>
@@ -434,7 +480,12 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                       <div className="mt-1 flex flex-col gap-0.5">
                         {(part.allocations || []).map((a) => {
                           const b = builds.find((bd) => bd.id === a.buildId);
-                          return <span key={a.buildId} className="text-[11px]" style={{ color: "#6B8077" }}>↳ {a.qty} used in {b ? b.name : "(deleted build)"}</span>;
+                          return (
+  <div key={a.buildId} className="text-[11px]" style={{ color: "#6B8077" }}>
+    ↳ {a.qty} used in {b ? b.name : "(deleted build)"}
+    {a.location && <span style={{ color: "#5C6E66" }}> · {a.location}{a.location2 ? ` / ${a.location2}` : ""}</span>}
+  </div>
+);
                         })}
                       </div>
                     )}
@@ -545,9 +596,20 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
 }
 
 // ---- EDIT BUILD FORM ----
-function EditBuildForm({ build, onSave, onCancel }) {
+function EditBuildForm({ build, onSave, onCancel, parts, partsById, removePartFromBuild, addPartToBuild }) {
   const [draft, setDraft] = useState({ name: build.name, location: build.location || "", location2: build.location2 || "" });
+  const [addLine, setAddLine] = useState({ partId: "", qty: "1", serialIds: [] });
+  const [showAdd, setShowAdd] = useState(false);
   const save = () => { if (!draft.name.trim()) return; onSave({ name: draft.name.trim(), location: draft.location.trim() || "Lab", location2: draft.location2.trim() }); };
+  const selectedPart = partsById[addLine.partId];
+  const handleAddPart = async () => {
+    if (!addLine.partId) return;
+    const part = partsById[addLine.partId];
+    if (!part) return;
+    await addPartToBuild(build.id, addLine.partId, part.serialized ? addLine.serialIds.length : parseInt(addLine.qty, 10) || 0, part.serialized ? addLine.serialIds : []);
+    setAddLine({ partId: "", qty: "1", serialIds: [] });
+    setShowAdd(false);
+  };
   return (
     <div className="mt-3 pt-3 border-t" style={{ borderColor: "#233029" }}>
       <div className="grid grid-cols-2 gap-2">
@@ -557,15 +619,65 @@ function EditBuildForm({ build, onSave, onCancel }) {
         <Field label="Sub Location"><input className={`${inputCls} bench-input`} value={draft.location2} onChange={(e) => setDraft((d) => ({ ...d, location2: e.target.value }))} placeholder="e.g. Pen 3" /></Field>
       </div>
       <div className="flex gap-2 mt-3">
-        <button onClick={save} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded" style={{ background: "#D98A4B", color: "#0F1714", fontWeight: 600 }}><Check size={12} /> Save</button>
-        <button onClick={onCancel} className="px-3 py-1.5 text-xs rounded" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>Cancel</button>
+        <button onClick={save} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded" style={{ background: "#D98A4B", color: "#0F1714", fontWeight: 600 }}><Check size={12} /> Save details</button>
+        <button onClick={onCancel} className="px-3 py-1.5 text-xs rounded" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>Done</button>
+      </div>
+
+      <div className="mt-4 pt-3 border-t" style={{ borderColor: "#233029" }}>
+        <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: "#8FA39A" }}>Parts in this build</div>
+        <div className="flex flex-col gap-1.5">
+          {build.lines.map((line) => {
+            const part = partsById[line.partId];
+            return (
+              <div key={line.partId} className="flex items-center justify-between gap-2 text-[11px] px-2 py-1.5 rounded" style={{ background: "#1B2622" }}>
+                <span style={{ color: "#EAF0EC" }}>
+                  {line.qty}× {part ? part.name : "(deleted)"}
+                  {line.serialIds?.length > 0 && <span style={{ color: "#8FA39A" }}> (SN: {line.serialIds.map((sid) => part?.serials?.find((s) => s.id === sid)?.serial).filter(Boolean).join(", ")})</span>}
+                </span>
+                <button onClick={() => removePartFromBuild(build.id, line.partId, line.serialIds || [])} className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px]" style={{ border: "1px solid #2A3A33", color: "#E0664C" }}>
+                  <X size={10} /> Remove
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        {showAdd ? (
+          <div className="mt-2 flex flex-col gap-2">
+            <select value={addLine.partId} onChange={(e) => setAddLine((l) => ({ ...l, partId: e.target.value, serialIds: [] }))} className={`${inputCls} bench-input text-xs`}>
+              <option value="">Select part to add…</option>
+              {parts.filter((p) => availableQty(p) > 0).map((p) => (
+                <option key={p.id} value={p.id}>{p.name} ({availableQty(p)} free){p.serialized ? " — serialized" : ""}</option>
+              ))}
+            </select>
+            {selectedPart && !selectedPart.serialized && (
+              <input type="number" min="1" max={availableQty(selectedPart)} value={addLine.qty} onChange={(e) => setAddLine((l) => ({ ...l, qty: e.target.value }))} className={`${inputCls} bench-input text-xs w-20`} placeholder="qty" />
+            )}
+            {selectedPart && selectedPart.serialized && (
+              <div className="flex flex-col gap-1 pl-2 border-l" style={{ borderColor: "#233029" }}>
+                <span className="text-[10px]" style={{ color: "#6B8077" }}>Pick units ({addLine.serialIds.length} selected)</span>
+                {(selectedPart.serials || []).filter((s) => !s.allocatedBuildId).map((s) => (
+                  <label key={s.id} className="flex items-center gap-2 text-[11px] cursor-pointer" style={{ color: "#EAF0EC" }}>
+                    <input type="checkbox" checked={addLine.serialIds.includes(s.id)} onChange={() => setAddLine((l) => ({ ...l, serialIds: l.serialIds.includes(s.id) ? l.serialIds.filter((x) => x !== s.id) : [...l.serialIds, s.id] }))} style={{ accentColor: "#D98A4B" }} />
+                    {s.serial}
+                  </label>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-1.5">
+              <button onClick={handleAddPart} className="flex items-center gap-1 px-2 py-1 text-[11px] rounded" style={{ background: "#5FB88A", color: "#0F1714", fontWeight: 600 }}><Plus size={10} /> Add</button>
+              <button onClick={() => { setShowAdd(false); setAddLine({ partId: "", qty: "1", serialIds: [] }); }} className="px-2 py-1 text-[11px] rounded" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setShowAdd(true)} className="flex items-center gap-1 text-[11px] mt-2" style={{ color: "#5FB88A" }}><Plus size={11} /> Add part to build</button>
+        )}
       </div>
     </div>
   );
 }
 
 // ---- BUILDS TAB ----
-function BuildsTab({ builds, parts, partsById, showAddBuild, setShowAddBuild, newBuild, setNewBuild, buildLines, addBuildLine, removeBuildLine, updateBuildLine, toggleBuildLineSerial, createBuild, buildError, disassembleBuild, updateBuild }) {
+function BuildsTab({ builds, parts, partsById, showAddBuild, setShowAddBuild, newBuild, setNewBuild, buildLines, addBuildLine, removeBuildLine, updateBuildLine, toggleBuildLineSerial, createBuild, buildError, disassembleBuild, updateBuild, removePartFromBuild, addPartToBuild }) {
   const [editingId, setEditingId] = useState(null);
 
   return (
@@ -664,7 +776,7 @@ function BuildsTab({ builds, parts, partsById, showAddBuild, setShowAddBuild, ne
                     })}
                   </div>
                   {isEditing && (
-                    <EditBuildForm build={build} onSave={async (updates) => { await updateBuild(build.id, updates); setEditingId(null); }} onCancel={() => setEditingId(null)} />
+                    <EditBuildForm build={build} onSave={async (updates) => { await updateBuild(build.id, updates); }} onCancel={() => setEditingId(null)} parts={parts} partsById={partsById} removePartFromBuild={removePartFromBuild} addPartToBuild={addPartToBuild} />
                   )}
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
