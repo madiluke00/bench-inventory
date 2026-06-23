@@ -420,10 +420,10 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
       {showAddPart && (
         <div className="bench-card rounded p-4 mb-4">
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Name"><input autoFocus className={`${inputCls} bench-input`} placeholder="e.g. ESP32-WROOM-32" value={newPart.name} onChange={(e) => setNewPart((p) => ({ ...p, name: e.target.value }))} /></Field>
-            <Field label="Category (optional)"><input className={`${inputCls} bench-input`} placeholder="e.g. Microcontroller" value={newPart.category} onChange={(e) => setNewPart((p) => ({ ...p, category: e.target.value }))} /></Field>
-            <Field label="Primary Location"><input className={`${inputCls} bench-input`} placeholder="e.g. Building A" value={newPart.location} onChange={(e) => setNewPart((p) => ({ ...p, location: e.target.value }))} /></Field>
-            <Field label="Sub Location"><input className={`${inputCls} bench-input`} placeholder="e.g. Shelf 3" value={newPart.location2} onChange={(e) => setNewPart((p) => ({ ...p, location2: e.target.value }))} /></Field>
+            <Field label="Name"><input autoFocus className={`${inputCls} bench-input`} placeholder="e.g. WOW2 Indicator" value={newPart.name} onChange={(e) => setNewPart((p) => ({ ...p, name: e.target.value }))} /></Field>
+            <Field label="Category (optional)"><input className={`${inputCls} bench-input`} placeholder="e.g. WoW Tech" value={newPart.category} onChange={(e) => setNewPart((p) => ({ ...p, category: e.target.value }))} /></Field>
+            <Field label="Primary Location"><input className={`${inputCls} bench-input`} placeholder="e.g. CCWF" value={newPart.location} onChange={(e) => setNewPart((p) => ({ ...p, location: e.target.value }))} /></Field>
+            <Field label="Sub Location"><input className={`${inputCls} bench-input`} placeholder="e.g. Lab" value={newPart.location2} onChange={(e) => setNewPart((p) => ({ ...p, location2: e.target.value }))} /></Field>
             {!newPart.serialized && <Field label="Quantity"><input type="number" min="0" className={`${inputCls} bench-input`} value={newPart.qty} onChange={(e) => setNewPart((p) => ({ ...p, qty: e.target.value }))} /></Field>}
           </div>
           <label className="flex items-center gap-2 mt-3 text-xs cursor-pointer select-none" style={{ color: "#8FA39A" }}>
