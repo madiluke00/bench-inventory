@@ -457,7 +457,7 @@ function VariantUnitAdd({ part, variant, updatePart }) {
   const [show, setShow] = useState(false);
   if (!show) return (
     <button onClick={() => setShow(true)} className="flex items-center gap-1 text-[11px] mt-1" style={{ color: "#5FB88A" }}>
-      <Plus size={10} /> Add unit
+      <Plus size={10} /> Add variant
     </button>
   );
   return (
