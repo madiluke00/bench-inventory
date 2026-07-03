@@ -149,9 +149,16 @@ export default function LabInventory() {
   }, []);
 
   const fetchRole = async (userId) => {
-    const { data } = await supabase.from("profiles").select("role").eq("id", userId).single();
-    setUserRole(data?.role || "viewer");
-    setAuthLoading(false);
+    try {
+      const { data, error } = await supabase.from("profiles").select("role").eq("id", userId).single();
+      if (error) throw error;
+      setUserRole(data?.role || "viewer");
+    } catch (e) {
+      console.error("Role fetch error:", e);
+      setUserRole("viewer");
+    } finally {
+      setAuthLoading(false);
+    }
   };
 
   const signOut = () => supabase.auth.signOut();
