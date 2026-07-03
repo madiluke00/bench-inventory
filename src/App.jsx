@@ -100,8 +100,8 @@ export default function LabInventory() {
         await Promise.all([supabase.from("parts").select("*"), supabase.from("builds").select("*")]);
       if (pErr) throw pErr;
       if (bErr) throw bErr;
-      setParts(partsData || []);
-      setBuilds(buildsData || []);
+      setParts((partsData || []).sort((a, b) => a.name.localeCompare(b.name)));
+      setBuilds((buildsData || []).sort((a, b) => a.name.localeCompare(b.name)));
     } catch {
       setError("Couldn't connect to database. Check your credentials.");
     } finally {
@@ -164,7 +164,7 @@ export default function LabInventory() {
     }
     const { error } = await supabase.from("parts").insert(part);
     if (error) { alert("Failed to save part: " + error.message); return; }
-    setParts((p) => [...p, part]);
+    setParts((p) => [...p, part].sort((a, b) => a.name.localeCompare(b.name)));
     setNewPart({ name: "", qty: "1", location: "", location2: "", category: "", serialized: false, serialsText: "", has_variants: false, variantsText: "" });
     setShowAddPart(false);
   };
@@ -272,7 +272,7 @@ export default function LabInventory() {
         await supabase.from("parts").update({ allocations: part.allocations }).eq("id", part.id);
     }
     setParts(updatedParts);
-    setBuilds((b) => [...b, build]);
+    setBuilds((b) => [...b, build].sort((a, b) => a.name.localeCompare(b.name)));
     setNewBuild({ name: "", location: "", location2: "" });
     setBuildLines([{ id: uid(), partId: "", qty: "1", serialIds: [] }]);
     setShowAddBuild(false);
@@ -383,7 +383,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v1.7</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v1.8</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
