@@ -200,7 +200,7 @@ export default function LabInventory() {
     } catch {}
   };
 
-  useEffect(() => { loadData().then(() => setLastSynced(new Date())); }, []);
+  useEffect(() => { if (user) loadData().then(() => setLastSynced(new Date())); }, [user]);
 
   useEffect(() => {
     const interval = setInterval(() => {
