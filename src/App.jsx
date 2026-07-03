@@ -389,7 +389,7 @@ export default function LabInventory() {
             <div className="flex items-center gap-2">
               {lastSynced && (
                 <span className="text-[10px]" style={{ color: "#5C6E66" }}>
-                  synced {Math.floor((new Date() - lastSynced) / 60000) === 0 ? "just now" : `${Math.floor((new Date() - lastSynced) / 60000)}m ago`}
+                  last sync {lastSynced.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                 </span>
               )}
               <button onClick={() => { loadData().then(() => setLastSynced(new Date())); }} className="w-7 h-7 flex items-center justify-center rounded" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }} title="Refresh">
