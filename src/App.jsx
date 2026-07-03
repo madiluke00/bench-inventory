@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { Plus, Trash2, Wrench, Boxes, MapPin, X, AlertCircle, Hammer, Tag, ChevronDown, ChevronUp, RefreshCw, Pencil, Check } from "lucide-react";
+import { Plus, Trash2, Wrench, Boxes, MapPin, X, AlertCircle, Hammer, Tag, ChevronDown, ChevronUp, RefreshCw, Pencil, Check, LogOut, Shield, UserPlus, Trash } from "lucide-react";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -20,6 +20,57 @@ function useFonts() {
 }
 
 const uid = () => Math.random().toString(36).slice(2, 10);
+
+// ---- LOGIN PAGE ----
+function LoginPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const login = async () => {
+    setLoading(true); setError(null);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) setError(error.message);
+    setLoading(false);
+  };
+
+  return (
+    <div className="min-h-screen w-full flex items-center justify-center" style={{ background: "#0F1714", fontFamily: "'JetBrains Mono', monospace" }}>
+      <div className="w-full max-w-sm px-6">
+        <div className="flex items-center gap-2.5 mb-8 justify-center">
+          <div className="w-8 h-8 rounded flex items-center justify-center" style={{ background: "#1B2622", border: "1px solid #2A3A33" }}>
+            <Boxes size={16} color="#5FB88A" />
+          </div>
+          <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em", color: "#EAF0EC" }} className="text-xl">
+            BENCH<span style={{ color: "#D98A4B" }}>.</span>
+          </h1>
+        </div>
+        <div className="flex flex-col gap-3" style={{ background: "#141F1B", border: "1px solid #233029", borderRadius: 8, padding: "1.5rem" }}>
+          <p className="text-xs text-center mb-2" style={{ color: "#8FA39A" }}>Sign in to continue</p>
+          <input
+            type="email" placeholder="Email" value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && login()}
+            className={`${inputCls} bench-input`}
+            style={{ background: "#131D19", borderColor: "#2A3A33", color: "#EAF0EC" }}
+          />
+          <input
+            type="password" placeholder="Password" value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && login()}
+            className={`${inputCls} bench-input`}
+            style={{ background: "#131D19", borderColor: "#2A3A33", color: "#EAF0EC" }}
+          />
+          {error && <p className="text-xs" style={{ color: "#E0664C" }}>{error}</p>}
+          <button onClick={login} disabled={loading} className="px-3 py-2 text-sm rounded mt-1" style={{ background: "#5FB88A", color: "#0F1714", fontWeight: 600 }}>
+            {loading ? "Signing in…" : "Sign in"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function totalQty(part) {
   if (part.has_variants) return (part.variants || []).reduce((s, v) => s + (v.units || []).length, 0);
@@ -78,6 +129,33 @@ const inputCls = "bg-transparent border rounded px-2 py-1.5 text-sm outline-none
 
 export default function LabInventory() {
   useFonts();
+
+  const [user, setUser] = useState(null);
+  const [userRole, setUserRole] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if (session?.user) fetchRole(session.user.id);
+      else setAuthLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      if (session?.user) fetchRole(session.user.id);
+      else { setUserRole(null); setAuthLoading(false); }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const fetchRole = async (userId) => {
+    const { data } = await supabase.from("profiles").select("role").eq("id", userId).single();
+    setUserRole(data?.role || "viewer");
+    setAuthLoading(false);
+  };
+
+  const signOut = () => supabase.auth.signOut();
+  const isAdmin = userRole === "admin";
 
   const [parts, setParts] = useState([]);
   const [builds, setBuilds] = useState([]);
@@ -363,6 +441,14 @@ export default function LabInventory() {
 
   const partsById = Object.fromEntries(parts.map((p) => [p.id, p]));
 
+  if (authLoading) return (
+    <div className="min-h-screen flex items-center justify-center" style={{ background: "#0F1714" }}>
+      <RefreshCw size={16} color="#5FB88A" className="animate-spin" />
+    </div>
+  );
+
+  if (!user) return <LoginPage />;
+
   return (
     <div className="min-h-screen w-full" style={{ background: "#0F1714", color: "#EAF0EC", fontFamily: "'JetBrains Mono', monospace" }}>
       <style>{`
@@ -383,7 +469,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v1.9</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v2.0</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -395,11 +481,16 @@ export default function LabInventory() {
               <button onClick={() => { loadData().then(() => setLastSynced(new Date())); }} className="w-7 h-7 flex items-center justify-center rounded" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }} title="Refresh">
                 <RefreshCw size={13} />
               </button>
+              <button onClick={signOut} className="w-7 h-7 flex items-center justify-center rounded" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }} title="Sign out">
+                <LogOut size={13} />
+              </button><button onClick={() => { loadData().then(() => setLastSynced(new Date())); }} className="w-7 h-7 flex items-center justify-center rounded" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }} title="Refresh">
+                <RefreshCw size={13} />
+              </button>
             </div>
           </div>
           <p className="mt-1 text-xs" style={{ color: "#8FA39A" }}>Parts inventory &amp; build tracking</p>
           <div className="flex gap-1 mt-5">
-            {[{ id: "parts", label: "Parts", icon: Boxes }, { id: "builds", label: "Builds", icon: Hammer }].map((t) => (
+            {[{ id: "parts", label: "Parts", icon: Boxes }, { id: "builds", label: "Builds", icon: Hammer }, ...(isAdmin ? [{ id: "admin", label: "Admin", icon: Shield }] : [])].map((t) => (
               <button key={t.id} onClick={() => setTab(t.id)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-t transition-colors"
                 style={{ background: tab === t.id ? "#141F1B" : "transparent", color: tab === t.id ? "#EAF0EC" : "#8FA39A", border: "1px solid", borderColor: tab === t.id ? "#233029" : "transparent", borderBottom: tab === t.id ? "1px solid #141F1B" : "1px solid transparent", marginBottom: "-1px" }}>
                 <t.icon size={13} />{t.label}
@@ -419,8 +510,9 @@ export default function LabInventory() {
             newPart={newPart} setNewPart={setNewPart} addPart={addPart}
             deletePart={deletePart} adjustQty={adjustQty} updatePart={updatePart}
             updateSerial={updateSerial} addSerial={addSerial} removeSerial={removeSerial} builds={builds}
+            isAdmin={isAdmin}
           />
-        ) : (
+        ) : tab === "builds" ? (
           <BuildsTab
             builds={builds} parts={parts} partsById={partsById}
             showAddBuild={showAddBuild} setShowAddBuild={setShowAddBuild}
@@ -430,7 +522,10 @@ export default function LabInventory() {
             toggleBuildLineSerial={toggleBuildLineSerial} createBuild={createBuild}
             buildError={buildError} disassembleBuild={disassembleBuild} updateBuild={updateBuild}
             removePartFromBuild={removePartFromBuild} addPartToBuild={addPartToBuild}
+            isAdmin={isAdmin}
           />
+        ) : (
+          <AdminPanel />
         )}
       </div>
     </div>
@@ -508,7 +603,7 @@ function VariantUnitAdd({ part, variant, updatePart }) {
 }
 
 // ---- PARTS TAB ----
-function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, addPart, deletePart, adjustQty, updatePart, updateSerial, addSerial, removeSerial, builds }) {
+function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, addPart, deletePart, adjustQty, updatePart, updateSerial, addSerial, removeSerial, builds, isAdmin }) {
   const [expanded, setExpanded] = useState({});
   const [serialDraft, setSerialDraft] = useState({});
   const [editingPartId, setEditingPartId] = useState(null);
@@ -520,9 +615,9 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm" style={{ color: "#8FA39A" }}>{parts.length} part{parts.length === 1 ? "" : "s"}</h2>
-        <button onClick={() => setShowAddPart((v) => !v)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded" style={{ background: "#1B2622", border: "1px solid #2A3A33", color: "#5FB88A" }}>
+        {isAdmin && <button onClick={() => setShowAddPart((v) => !v)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded" style={{ background: "#1B2622", border: "1px solid #2A3A33", color: "#5FB88A" }}>
           <Plus size={13} /> Add part
-        </button>
+        </button>}
       </div>
 
       {showAddPart && (
@@ -830,12 +925,12 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                       <button onClick={() => adjustQty(part.id, 1)} className="w-6 h-6 rounded text-xs flex items-center justify-center" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>+</button>
                     </>
                   )}
-                  <button onClick={() => setEditingPartId(isEditing ? null : part.id)} className="w-6 h-6 rounded flex items-center justify-center ml-1" style={{ color: isEditing ? "#5FB88A" : "#8FA39A", border: "1px solid #2A3A33" }} title="Edit part">
+                  {isAdmin && <button onClick={() => setEditingPartId(isEditing ? null : part.id)} className="w-6 h-6 rounded flex items-center justify-center ml-1" style={{ color: isEditing ? "#5FB88A" : "#8FA39A", border: "1px solid #2A3A33" }} title="Edit part">
                     <Pencil size={12} />
-                  </button>
-                  <button onClick={() => deletePart(part.id)} className="w-6 h-6 rounded flex items-center justify-center" style={{ color: "#E0664C" }}>
+                  </button>}
+                  {isAdmin && <button onClick={() => deletePart(part.id)} className="w-6 h-6 rounded flex items-center justify-center" style={{ color: "#E0664C" }}>
                     <Trash2 size={13} />
-                  </button>
+                  </button>}
                 </div>
               </div>
             </div>
@@ -960,16 +1055,16 @@ function EditBuildForm({ build, onSave, onCancel, parts, partsById, removePartFr
 }
 
 // ---- BUILDS TAB ----
-function BuildsTab({ builds, parts, partsById, showAddBuild, setShowAddBuild, newBuild, setNewBuild, buildLines, addBuildLine, removeBuildLine, updateBuildLine, toggleBuildLineSerial, createBuild, buildError, disassembleBuild, updateBuild, removePartFromBuild, addPartToBuild }) {
+function BuildsTab({ builds, parts, partsById, showAddBuild, setShowAddBuild, newBuild, setNewBuild, buildLines, addBuildLine, removeBuildLine, updateBuildLine, toggleBuildLineSerial, createBuild, buildError, disassembleBuild, updateBuild, removePartFromBuild, addPartToBuild, isAdmin }) {
   const [editingId, setEditingId] = useState(null);
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm" style={{ color: "#8FA39A" }}>{builds.length} build{builds.length === 1 ? "" : "s"}</h2>
-        <button onClick={() => setShowAddBuild((v) => !v)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded" style={{ background: "#1B2622", border: "1px solid #2A3A33", color: "#D98A4B" }}>
+        {isAdmin && <button onClick={() => setShowAddBuild((v) => !v)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded" style={{ background: "#1B2622", border: "1px solid #2A3A33", color: "#D98A4B" }}>
           <Plus size={13} /> New build
-        </button>
+        </button>}
       </div>
 
       {showAddBuild && (
@@ -1094,16 +1189,111 @@ function BuildsTab({ builds, parts, partsById, showAddBuild, setShowAddBuild, ne
                     <EditBuildForm build={build} onSave={async (updates) => { await updateBuild(build.id, updates); }} onCancel={() => setEditingId(null)} parts={parts} partsById={partsById} removePartFromBuild={removePartFromBuild} addPartToBuild={addPartToBuild} />
                   )}
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0">
+                {isAdmin && <div className="flex items-center gap-1.5 shrink-0">
                   <button onClick={() => setEditingId(isEditing ? null : build.id)} className="w-6 h-6 rounded flex items-center justify-center" style={{ color: isEditing ? "#5FB88A" : "#8FA39A", border: "1px solid #2A3A33" }}>
                     <Pencil size={12} />
                   </button>
                   <button onClick={() => disassembleBuild(build.id)} className="px-2.5 py-1 text-[11px] rounded" style={{ border: "1px solid #2A3A33", color: "#E0664C" }}>Disassemble</button>
-                </div>
+                </div>}
               </div>
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+// ---- ADMIN PANEL ----
+function AdminPanel() {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("viewer");
+  const [invitePassword, setInvitePassword] = useState("");
+  const [message, setMessage] = useState(null);
+
+  useEffect(() => { loadUsers(); }, []);
+
+  const loadUsers = async () => {
+    setLoading(true);
+    const { data } = await supabase.from("profiles").select("*");
+    setUsers(data || []);
+    setLoading(false);
+  };
+
+  const createUser = async () => {
+    if (!inviteEmail.trim() || !invitePassword.trim()) return;
+    setMessage(null);
+    const { data, error } = await supabase.auth.admin?.createUser
+      ? await supabase.auth.admin.createUser({ email: inviteEmail, password: invitePassword, email_confirm: true })
+      : { error: { message: "Use Supabase dashboard to create users, then set role below." } };
+    if (error) { setMessage({ type: "error", text: error.message }); return; }
+    if (data?.user) {
+      await supabase.from("profiles").insert({ id: data.user.id, email: inviteEmail, role: inviteRole });
+      setMessage({ type: "success", text: `User ${inviteEmail} created!` });
+      setInviteEmail(""); setInvitePassword("");
+      loadUsers();
+    }
+  };
+
+  const updateRole = async (userId, role) => {
+    await supabase.from("profiles").update({ role }).eq("id", userId);
+    setUsers((u) => u.map((x) => x.id === userId ? { ...x, role } : x));
+  };
+
+  return (
+    <div>
+      <h2 className="text-sm mb-4" style={{ color: "#8FA39A" }}>Admin Panel</h2>
+
+      {/* Create user */}
+      <div className="bench-card rounded p-4 mb-4">
+        <div className="text-[10px] uppercase tracking-wider mb-3 flex items-center gap-1.5" style={{ color: "#8FA39A" }}>
+          <UserPlus size={11} /> Add user
+        </div>
+        <div className="grid grid-cols-2 gap-2 mb-2">
+          <input className={`${inputCls} bench-input`} placeholder="Email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} style={{ background: "#131D19", borderColor: "#2A3A33", color: "#EAF0EC" }} />
+          <input type="password" className={`${inputCls} bench-input`} placeholder="Password" value={invitePassword} onChange={(e) => setInvitePassword(e.target.value)} style={{ background: "#131D19", borderColor: "#2A3A33", color: "#EAF0EC" }} />
+        </div>
+        <div className="flex items-center gap-2 mb-3">
+          <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value)} className={`${inputCls} bench-input text-xs`} style={{ background: "#131D19", borderColor: "#2A3A33", color: "#EAF0EC" }}>
+            <option value="viewer">Viewer (read only)</option>
+            <option value="admin">Admin (full access)</option>
+          </select>
+        </div>
+        <p className="text-[10px] mb-3" style={{ color: "#6B8077" }}>
+          Note: If user creation fails here, create the user in the Supabase dashboard → Authentication → Users, then their profile will appear below and you can set their role.
+        </p>
+        {message && <p className="text-xs mb-2" style={{ color: message.type === "error" ? "#E0664C" : "#5FB88A" }}>{message.text}</p>}
+        <button onClick={createUser} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded" style={{ background: "#5FB88A", color: "#0F1714", fontWeight: 600 }}>
+          <UserPlus size={12} /> Create user
+        </button>
+      </div>
+
+      {/* User list */}
+      <div className="bench-card rounded p-4">
+        <div className="text-[10px] uppercase tracking-wider mb-3" style={{ color: "#8FA39A" }}>Users</div>
+        {loading ? <p className="text-xs" style={{ color: "#8FA39A" }}>Loading…</p> : (
+          <div className="flex flex-col gap-2">
+            {users.map((u) => (
+              <div key={u.id} className="flex items-center justify-between gap-3 text-xs p-2 rounded" style={{ background: "#1B2622" }}>
+                <span style={{ color: "#EAF0EC" }}>{u.email}</span>
+                <select
+                  value={u.role}
+                  onChange={(e) => updateRole(u.id, e.target.value)}
+                  className="text-xs rounded px-2 py-1 outline-none"
+                  style={{ background: "#131D19", border: "1px solid #2A3A33", color: u.role === "admin" ? "#D98A4B" : "#8FA39A" }}
+                >
+                  <option value="viewer">Viewer</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+            ))}
+            {users.length === 0 && <p className="text-xs" style={{ color: "#6B8077" }}>No users found.</p>}
+          </div>
+        )}
+        <button onClick={loadUsers} className="flex items-center gap-1 text-[11px] mt-3" style={{ color: "#5FB88A" }}>
+          <RefreshCw size={11} /> Refresh
+        </button>
       </div>
     </div>
   );
