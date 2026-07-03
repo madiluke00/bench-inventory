@@ -628,7 +628,10 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                                   );
                                 });
                               })()}
-                              <VariantUnitAdd part={part} variant={v} updatePart={updatePart} />
+                              <div className="flex items-center gap-1 mt-1">
+                                <button onClick={() => updatePart(part.id, { variants: part.variants.map((x) => x.id === v.id ? { ...x, units: [...(x.units || []), { id: uid(), location: part.location || "", location2: part.location2 || "", allocatedBuildId: null }] } : x) })} className="w-5 h-5 rounded text-xs flex items-center justify-center" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>+</button>
+                                <button onClick={() => { const freeUnit = [...(v.units || [])].reverse().find((u) => !u.allocatedBuildId); if (freeUnit) updatePart(part.id, { variants: part.variants.map((x) => x.id === v.id ? { ...x, units: x.units.filter((u) => u.id !== freeUnit.id) } : x) }); }} className="w-5 h-5 rounded text-xs flex items-center justify-center" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>−</button>
+              </div>
                             </div>
                           );
                         })}
