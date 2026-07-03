@@ -109,7 +109,28 @@ export default function LabInventory() {
     }
   };
 
-  useEffect(() => { loadData(); }, []);
+  const [lastSynced, setLastSynced] = useState(null);
+
+  const syncData = async () => {
+    try {
+      const [{ data: partsData, error: pErr }, { data: buildsData, error: bErr }] =
+        await Promise.all([supabase.from("parts").select("*"), supabase.from("builds").select("*")]);
+      if (pErr || bErr) return;
+      setParts(partsData || []);
+      setBuilds(buildsData || []);
+      setLastSynced(new Date());
+    } catch {}
+  };
+
+  useEffect(() => { loadData().then(() => setLastSynced(new Date())); }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const anyFormOpen = showAddPart || showAddBuild;
+      if (!anyFormOpen) syncData();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [showAddPart, showAddBuild]);
 
   const addPart = async () => {
     if (!newPart.name.trim()) return;
@@ -364,9 +385,16 @@ export default function LabInventory() {
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
               </h1>
             </div>
-            <button onClick={loadData} className="w-7 h-7 flex items-center justify-center rounded" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }} title="Refresh">
-              <RefreshCw size={13} />
-            </button>
+            <div className="flex items-center gap-2">
+              {lastSynced && (
+                <span className="text-[10px]" style={{ color: "#5C6E66" }}>
+                  synced {Math.floor((new Date() - lastSynced) / 60000) === 0 ? "just now" : `${Math.floor((new Date() - lastSynced) / 60000)}m ago`}
+                </span>
+              )}
+              <button onClick={() => { loadData().then(() => setLastSynced(new Date())); }} className="w-7 h-7 flex items-center justify-center rounded" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }} title="Refresh">
+                <RefreshCw size={13} />
+              </button>
+            </div>
           </div>
           <p className="mt-1 text-xs" style={{ color: "#8FA39A" }}>Parts inventory &amp; build tracking</p>
           <div className="flex gap-1 mt-5">
