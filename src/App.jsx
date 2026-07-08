@@ -562,12 +562,14 @@ function EditPartForm({ part, onSave, onCancel, usedQty }) {
   );
 }
 
-// ---- EDIT SERIAL LOCATION ----
+// ---- EDIT SERIAL ----
 function EditSerialLocation({ serial, onSave, onCancel }) {
-  const [draft, setDraft] = useState({ location: serial.location || "", location2: serial.location2 || "" });
+  const [draft, setDraft] = useState({ serial: serial.serial || "", location: serial.location || "", location2: serial.location2 || "" });
   return (
     <div className="flex flex-col gap-1.5 mt-1 pl-2">
       <div className="grid grid-cols-2 gap-1.5">
+        <input className={`${inputCls} bench-input text-xs py-1`} placeholder="Serial number" value={draft.serial} onChange={(e) => setDraft((d) => ({ ...d, serial: e.target.value }))} />
+        <div />
         <input className={`${inputCls} bench-input text-xs py-1`} placeholder="Primary location" value={draft.location} onChange={(e) => setDraft((d) => ({ ...d, location: e.target.value }))} />
         <input className={`${inputCls} bench-input text-xs py-1`} placeholder="Sub location" value={draft.location2} onChange={(e) => setDraft((d) => ({ ...d, location2: e.target.value }))} />
       </div>
