@@ -342,7 +342,7 @@ export default function LabInventory() {
       const line = lines.find((l) => l.partId === part.id);
       if (!line) return part;
       if (part.has_variants) {
-        return { ...part, variants: (part.variants || []).map((v) => v.id === line.variantId ? { ...v, units: (v.units || []).map((u) => (line.unitIds || []).includes(u.id) ? { ...u, allocatedBuildId: buildId } : u) } : v) };
+        return { ...part, variants: (part.variants || []).map((v) => v.id === line.variantId ? { ...v, units: (v.units || []).map((u) => (line.unitIds || []).includes(u.id) ? { ...u, allocatedBuildId: buildId, location: build.location, location2: build.location2 } : u) } : v) };
       }
       if (part.serialized) return { ...part, serials: part.serials.map((s) => line.serialIds.includes(s.id) ? { ...s, allocatedBuildId: buildId, location: build.location, location2: build.location2 } : s) };
       return { ...part, allocations: [...(part.allocations || []), { buildId, qty: line.qty, location: build.location, location2: build.location2 }] };
@@ -429,7 +429,7 @@ export default function LabInventory() {
     }
     let partUpdates = {};
     if (part.has_variants) {
-      partUpdates.variants = part.variants.map((v) => v.id === variantId ? { ...v, units: (v.units || []).map((u) => unitIds.includes(u.id) ? { ...u, allocatedBuildId: buildId } : u) } : v);
+      partUpdates.variants = part.variants.map((v) => v.id === variantId ? { ...v, units: (v.units || []).map((u) => unitIds.includes(u.id) ? { ...u, allocatedBuildId: buildId, location: build.location, location2: build.location2 } : u) } : v);
     } else if (part.serialized) {
       partUpdates.serials = part.serials.map((s) => serialIds.includes(s.id) ? { ...s, allocatedBuildId: buildId, location: build.location, location2: build.location2 } : s);
     } else {
