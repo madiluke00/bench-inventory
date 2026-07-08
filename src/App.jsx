@@ -258,6 +258,12 @@ export default function LabInventory() {
     const { error } = await supabase.from("parts").delete().eq("id", id);
     if (error) { alert("Failed to delete: " + error.message); return; }
     setParts((p) => p.filter((x) => x.id !== id));
+    const affectedBuilds = builds.filter((b) => b.lines.some((l) => l.partId === id));
+    for (const build of affectedBuilds) {
+      const newLines = build.lines.filter((l) => l.partId !== id);
+      await supabase.from("builds").update({ lines: newLines }).eq("id", build.id);
+    }
+    setBuilds((b) => b.map((bd) => ({ ...bd, lines: bd.lines.filter((l) => l.partId !== id) })));
   };
 
   const updatePart = async (id, updates) => {
