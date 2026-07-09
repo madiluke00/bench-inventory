@@ -833,11 +833,8 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2 flex-wrap">
                       <span className="text-sm font-semibold">{part.name}</span>
-                      {part.category && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "#1B2622", color: "#8FA39A" }}>{part.category}</span>}
+                      {part.category && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "#1B2622", color: "#5FB88A" }}>{part.category}</span>}
                       {part.serialized && <span className="text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1" style={{ background: "#1B2622", color: "#D98A4B" }}><Tag size={9} /> serialized</span>}
-                      {(part.tags || []).map((tag) => (
-                        <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "#1B2622", color: "#5FB88A", border: "1px solid #233029" }}>{tag}</span>
-                      ))}
                     </div>
                     <div className="text-xs mt-1">
                       <span style={{ color: avail === 0 ? "#E0664C" : "#5FB88A" }}>{avail} available</span>
@@ -1065,7 +1062,15 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1.5 shrink-0">
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                  {(part.tags || []).length > 0 && (
+                    <div className="flex flex-wrap justify-end gap-1">
+                      {(part.tags || []).map((tag) => (
+                        <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "#1B2622", color: "#8FA39A", border: "1px solid #233029" }}>{tag}</span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-1.5">
                   {!part.serialized && !part.has_variants && (
                     <>
                       <button onClick={() => adjustQty(part.id, -1)} className="w-6 h-6 rounded text-xs flex items-center justify-center" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>−</button>
@@ -1079,6 +1084,7 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                   {isAdmin && <button onClick={() => deletePart(part.id)} className="w-6 h-6 rounded flex items-center justify-center" style={{ color: "#E0664C" }}>
                     <Trash2 size={13} />
                   </button>}
+                  </div>
                 </div>
               </div>
             </div>
