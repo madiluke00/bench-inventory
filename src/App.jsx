@@ -450,6 +450,34 @@ export default function LabInventory() {
     const { error } = await supabase.from("builds").update(updates).eq("id", buildId);
     if (error) return;
     setBuilds((b) => b.map((x) => (x.id === buildId ? { ...x, ...updates } : x)));
+    if (updates.location !== undefined || updates.location2 !== undefined) {
+      const build = builds.find((b) => b.id === buildId);
+      if (!build) return;
+      const newLoc = updates.location ?? build.location;
+      const newLoc2 = updates.location2 ?? build.location2;
+      const updatedParts = parts.map((part) => {
+        const line = build.lines.find((l) => l.partId === part.id);
+        if (!line) return part;
+        if (part.has_variants) {
+          return { ...part, variants: (part.variants || []).map((v) => v.id === line.variantId ? { ...v, units: (v.units || []).map((u) => u.allocatedBuildId === buildId ? { ...u, location: newLoc, location2: newLoc2 } : u) } : v) };
+        }
+        if (part.serialized) {
+          return { ...part, serials: (part.serials || []).map((s) => s.allocatedBuildId === buildId ? { ...s, location: newLoc, location2: newLoc2 } : s) };
+        }
+        return { ...part, allocations: (part.allocations || []).map((a) => a.buildId === buildId ? { ...a, location: newLoc, location2: newLoc2 } : a) };
+      });
+      for (const part of updatedParts) {
+        const orig = parts.find((p) => p.id === part.id);
+        if (!orig) continue;
+        if (part.has_variants && JSON.stringify(part.variants) !== JSON.stringify(orig.variants))
+          await supabase.from("parts").update({ variants: part.variants }).eq("id", part.id);
+        if (part.serialized && JSON.stringify(part.serials) !== JSON.stringify(orig.serials))
+          await supabase.from("parts").update({ serials: part.serials }).eq("id", part.id);
+        if (!part.serialized && !part.has_variants && JSON.stringify(part.allocations) !== JSON.stringify(orig.allocations))
+          await supabase.from("parts").update({ allocations: part.allocations }).eq("id", part.id);
+      }
+      setParts(updatedParts);
+    }
   };
 
   const partsById = Object.fromEntries(parts.map((p) => [p.id, p]));
