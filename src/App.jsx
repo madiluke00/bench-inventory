@@ -1016,7 +1016,11 @@ function EditBuildForm({ build, onSave, onCancel, parts, partsById, removePartFr
       <div className="mt-4 pt-3 border-t" style={{ borderColor: "#233029" }}>
         <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: "#8FA39A" }}>Parts in this build</div>
         <div className="flex flex-col gap-1.5">
-          {build.lines.map((line) => {
+          {[...build.lines].sort((a, b) => {
+            const nameA = partsById[a.partId]?.name || "";
+            const nameB = partsById[b.partId]?.name || "";
+            return nameA.localeCompare(nameB);
+          }).map((line) => {
             const part = partsById[line.partId];
             return (
               <div key={line.partId} className="flex items-center justify-between gap-2 text-[11px] px-2 py-1.5 rounded" style={{ background: "#1B2622" }}>
@@ -1208,7 +1212,11 @@ function BuildsTab({ builds, parts, partsById, showAddBuild, setShowAddBuild, ne
                   </div>
                   <LocationDisplay location={build.location} location2={build.location2} />
                   <div className="mt-2 flex flex-col gap-0.5">
-                    {build.lines.map((line) => {
+                    {[...build.lines].sort((a, b) => {
+                      const nameA = partsById[a.partId]?.name || "";
+                      const nameB = partsById[b.partId]?.name || "";
+                      return nameA.localeCompare(nameB);
+                    }).map((line) => {
                       const part = partsById[line.partId];
                       const serialNames = line.serialIds && part
                         ? line.serialIds.map((sid) => part.serials?.find((s) => s.id === sid)?.serial).filter(Boolean)
