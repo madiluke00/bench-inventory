@@ -1062,14 +1062,7 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                   </div>
                 </div>
 
-                <div className="flex flex-col items-end gap-2 shrink-0">
-                  {(part.tags || []).length > 0 && (
-                    <div className="flex flex-wrap justify-end gap-1">
-                      {(part.tags || []).map((tag) => (
-                        <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "#1B2622", color: "#8FA39A", border: "1px solid #233029" }}>{tag}</span>
-                      ))}
-                    </div>
-                  )}
+                <div className="flex flex-col items-end justify-between gap-2 shrink-0 self-stretch">
                   <div className="flex items-center gap-1.5">
                   {!part.serialized && !part.has_variants && (
                     <>
@@ -1085,6 +1078,13 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                     <Trash2 size={13} />
                   </button>}
                   </div>
+                  {(part.tags || []).length > 0 && (
+                    <div className="flex flex-wrap justify-end gap-1">
+                      {(part.tags || []).map((tag) => (
+                        <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "#1B2622", color: "#8FA39A", border: "1px solid #233029" }}>{tag}</span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
