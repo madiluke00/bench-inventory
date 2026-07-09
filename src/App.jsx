@@ -171,7 +171,7 @@ export default function LabInventory() {
   const [tab, setTab] = useState("parts");
 
   const [showAddPart, setShowAddPart] = useState(false);
-  const [newPart, setNewPart] = useState({ name: "", qty: "1", location: "", location2: "", category: "", serialized: false, serialsText: "", has_variants: false, variantsText: "" });
+  const [newPart, setNewPart] = useState({ name: "", qty: "1", location: "", location2: "", category: "", serialized: false, serialsText: "", has_variants: false, variantsText: "", tags: [] });
 
   const [showAddBuild, setShowAddBuild] = useState(false);
   const [newBuild, setNewBuild] = useState({ name: "", location: "", location2: "" });
@@ -228,14 +228,14 @@ export default function LabInventory() {
         id: uid(), name: newPart.name.trim(),
         location: newPart.location.trim() || "Lab", location2: newPart.location2.trim(),
         category: newPart.category.trim(), has_variants: true, variants,
-        serialized: false, qty: 0, allocations: [], serials: [],
+        serialized: false, qty: 0, allocations: [], serials: [], tags: newPart.tags,
       };
     } else if (newPart.serialized) {
       part = {
         id: uid(), name: newPart.name.trim(),
         location: newPart.location.trim() || "Lab", location2: newPart.location2.trim(),
         category: newPart.category.trim(), serialized: true, qty: 0, allocations: [],
-        has_variants: false, variants: [],
+        has_variants: false, variants: [], tags: newPart.tags,
         serials: newPart.serialsText.split(/[\n,]/).map((s) => s.trim()).filter(Boolean)
           .map((s) => ({ id: uid(), serial: s, allocatedBuildId: null, location: newPart.location.trim() || "Lab", location2: newPart.location2.trim() })),
       };
@@ -244,13 +244,13 @@ export default function LabInventory() {
         id: uid(), name: newPart.name.trim(), qty: Math.max(0, parseInt(newPart.qty, 10) || 0),
         location: newPart.location.trim() || "Lab", location2: newPart.location2.trim(),
         category: newPart.category.trim(), serialized: false, allocations: [], serials: [],
-        has_variants: false, variants: [],
+        has_variants: false, variants: [], tags: newPart.tags,
       };
     }
     const { error } = await supabase.from("parts").insert(part);
     if (error) { alert("Failed to save part: " + error.message); return; }
     setParts((p) => [...p, part].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
-    setNewPart({ name: "", qty: "1", location: "", location2: "", category: "", serialized: false, serialsText: "", has_variants: false, variantsText: "" });
+    setNewPart({ name: "", qty: "1", location: "", location2: "", category: "", serialized: false, serialsText: "", has_variants: false, variantsText: "", tags: [] });
     setShowAddPart(false);
   };
 
@@ -572,10 +572,10 @@ export default function LabInventory() {
 
 // ---- EDIT PART FORM ----
 function EditPartForm({ part, onSave, onCancel, usedQty }) {
-  const [draft, setDraft] = useState({ name: part.name, category: part.category || "", location: part.location || "", location2: part.location2 || "", qty: part.qty ?? 0 });
+  const [draft, setDraft] = useState({ name: part.name, category: part.category || "", location: part.location || "", location2: part.location2 || "", qty: part.qty ?? 0, tags: part.tags || [] });
   const save = () => {
     if (!draft.name.trim()) return;
-    const updates = { name: draft.name.trim(), category: draft.category.trim(), location: draft.location.trim() || "Lab", location2: draft.location2.trim() };
+    const updates = { name: draft.name.trim(), category: draft.category.trim(), location: draft.location.trim() || "Lab", location2: draft.location2.trim(), tags: draft.tags };
     if (!part.serialized) updates.qty = Math.max(usedQty, parseInt(draft.qty, 10) || 0);
     onSave(updates);
   };
@@ -587,6 +587,29 @@ function EditPartForm({ part, onSave, onCancel, usedQty }) {
         <Field label="Primary Location"><input className={`${inputCls} bench-input`} value={draft.location} onChange={(e) => setDraft((d) => ({ ...d, location: e.target.value }))} placeholder="e.g. Building A" /></Field>
         <Field label="Sub Location"><input className={`${inputCls} bench-input`} value={draft.location2} onChange={(e) => setDraft((d) => ({ ...d, location2: e.target.value }))} placeholder="e.g. Shelf 3" /></Field>
         {!part.serialized && <Field label="Quantity"><input type="number" min={usedQty} className={`${inputCls} bench-input`} value={draft.qty} onChange={(e) => setDraft((d) => ({ ...d, qty: e.target.value }))} /></Field>}
+      </div>
+      <div className="mt-2">
+        <span className="text-[10px] uppercase tracking-wider" style={{ color: "#8FA39A" }}>Tags</span>
+        <div className="flex flex-wrap gap-1.5 mt-1.5">
+          {(draft.tags || []).map((tag) => (
+            <span key={tag} className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded" style={{ background: "#1B2622", border: "1px solid #2A3A33", color: "#5FB88A" }}>
+              {tag}
+              <button onClick={() => setDraft((d) => ({ ...d, tags: d.tags.filter((t) => t !== tag) }))} style={{ color: "#6B8077" }}><X size={10} /></button>
+            </span>
+          ))}
+          <input
+            placeholder="Add tag…"
+            className="text-[11px] bg-transparent outline-none border-b py-0.5"
+            style={{ color: "#EAF0EC", borderColor: "#2A3A33", width: "100px" }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && e.target.value.trim()) {
+                const tag = e.target.value.trim();
+                if (!draft.tags.includes(tag)) setDraft((d) => ({ ...d, tags: [...d.tags, tag] }));
+                e.target.value = "";
+              }
+            }}
+          />
+        </div>
       </div>
       <div className="flex gap-2 mt-3">
         <button onClick={save} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded" style={{ background: "#5FB88A", color: "#0F1714", fontWeight: 600 }}><Check size={12} /> Save</button>
@@ -648,17 +671,76 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
   const [serialDraft, setSerialDraft] = useState({});
   const [editingPartId, setEditingPartId] = useState(null);
   const [editingSerialId, setEditingSerialId] = useState(null);
+  const [filterCategory, setFilterCategory] = useState("");
+  const [filterTags, setFilterTags] = useState([]);
 
   const handleSaveEdit = async (id, updates) => { await updatePart(id, updates); setEditingPartId(null); };
 
+  const allCategories = [...new Set(parts.map((p) => p.category).filter(Boolean))].sort();
+  const allTags = [...new Set(parts.flatMap((p) => p.tags || []))].sort();
+
+  const filteredParts = parts.filter((p) => {
+    if (filterCategory && p.category !== filterCategory) return false;
+    if (filterTags.length > 0 && !filterTags.some((t) => (p.tags || []).includes(t))) return false;
+    return true;
+  });
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm" style={{ color: "#8FA39A" }}>{parts.length} part{parts.length === 1 ? "" : "s"}</h2>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm" style={{ color: "#8FA39A" }}>{filteredParts.length} part{filteredParts.length === 1 ? "" : "s"}{(filterCategory || filterTags.length > 0) ? ` (filtered)` : ""}</h2>
         {isAdmin && <button onClick={() => setShowAddPart((v) => !v)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded" style={{ background: "#1B2622", border: "1px solid #2A3A33", color: "#5FB88A" }}>
           <Plus size={13} /> Add part
         </button>}
       </div>
+
+      {/* Filters */}
+      {(allCategories.length > 0 || allTags.length > 0) && (
+        <div className="flex flex-col gap-2 mb-4 p-3 rounded" style={{ background: "#141F1B", border: "1px solid #233029" }}>
+          {allCategories.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] uppercase tracking-wider shrink-0" style={{ color: "#5C6E66" }}>Category</span>
+              <button
+                onClick={() => setFilterCategory("")}
+                className="text-[11px] px-2 py-0.5 rounded"
+                style={{ background: !filterCategory ? "#5FB88A" : "#1B2622", color: !filterCategory ? "#0F1714" : "#8FA39A", border: "1px solid #2A3A33", fontWeight: !filterCategory ? 600 : 400 }}
+              >
+                All
+              </button>
+              {allCategories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setFilterCategory(filterCategory === cat ? "" : cat)}
+                  className="text-[11px] px-2 py-0.5 rounded"
+                  style={{ background: filterCategory === cat ? "#5FB88A" : "#1B2622", color: filterCategory === cat ? "#0F1714" : "#8FA39A", border: "1px solid #2A3A33", fontWeight: filterCategory === cat ? 600 : 400 }}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          )}
+          {allTags.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] uppercase tracking-wider shrink-0" style={{ color: "#5C6E66" }}>Tags</span>
+              {allTags.map((tag) => (
+                <button
+                  key={tag}
+                  onClick={() => setFilterTags((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag])}
+                  className="text-[11px] px-2 py-0.5 rounded"
+                  style={{ background: filterTags.includes(tag) ? "#D98A4B" : "#1B2622", color: filterTags.includes(tag) ? "#0F1714" : "#8FA39A", border: "1px solid #2A3A33", fontWeight: filterTags.includes(tag) ? 600 : 400 }}
+                >
+                  {tag}
+                </button>
+              ))}
+              {filterTags.length > 0 && (
+                <button onClick={() => setFilterTags([])} className="text-[11px] px-2 py-0.5 rounded" style={{ color: "#6B8077" }}>
+                  clear
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {showAddPart && (
         <div className="bench-card rounded p-4 mb-4">
@@ -668,6 +750,29 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
             <Field label="Primary Location"><input className={`${inputCls} bench-input`} placeholder="e.g. CCWF" value={newPart.location} onChange={(e) => setNewPart((p) => ({ ...p, location: e.target.value }))} /></Field>
             <Field label="Sub Location"><input className={`${inputCls} bench-input`} placeholder="e.g. Lab" value={newPart.location2} onChange={(e) => setNewPart((p) => ({ ...p, location2: e.target.value }))} /></Field>
             {!newPart.serialized && <Field label="Quantity"><input type="number" min="0" className={`${inputCls} bench-input`} value={newPart.qty} onChange={(e) => setNewPart((p) => ({ ...p, qty: e.target.value }))} /></Field>}
+          </div>
+          <div className="mt-3">
+            <span className="text-[10px] uppercase tracking-wider" style={{ color: "#8FA39A" }}>Tags</span>
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
+              {(newPart.tags || []).map((tag) => (
+                <span key={tag} className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded" style={{ background: "#1B2622", border: "1px solid #2A3A33", color: "#5FB88A" }}>
+                  {tag}
+                  <button onClick={() => setNewPart((p) => ({ ...p, tags: p.tags.filter((t) => t !== tag) }))} style={{ color: "#6B8077" }}><X size={10} /></button>
+                </span>
+              ))}
+              <input
+                placeholder="Add tag…"
+                className="text-[11px] bg-transparent outline-none border-b py-0.5"
+                style={{ color: "#EAF0EC", borderColor: "#2A3A33", width: "100px" }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && e.target.value.trim()) {
+                    const tag = e.target.value.trim();
+                    if (!newPart.tags.includes(tag)) setNewPart((p) => ({ ...p, tags: [...p.tags, tag] }));
+                    e.target.value = "";
+                  }
+                }}
+              />
+            </div>
           </div>
           <label className="flex items-center gap-2 mt-3 text-xs cursor-pointer select-none" style={{ color: "#8FA39A" }}>
             <input type="checkbox" checked={newPart.has_variants} onChange={(e) => setNewPart((p) => ({ ...p, has_variants: e.target.checked, serialized: false }))} style={{ accentColor: "#D98A4B" }} />
@@ -713,7 +818,7 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
       )}
 
       <div className="flex flex-col gap-2">
-        {parts.map((part) => {
+        {filteredParts.map((part) => {
           const avail = availableQty(part);
           const used = allocatedQty(part);
           const total = totalQty(part);
@@ -730,6 +835,9 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                       <span className="text-sm font-semibold">{part.name}</span>
                       {part.category && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "#1B2622", color: "#8FA39A" }}>{part.category}</span>}
                       {part.serialized && <span className="text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1" style={{ background: "#1B2622", color: "#D98A4B" }}><Tag size={9} /> serialized</span>}
+                      {(part.tags || []).map((tag) => (
+                        <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "#1B2622", color: "#5FB88A", border: "1px solid #233029" }}>{tag}</span>
+                      ))}
                     </div>
                     <div className="text-xs mt-1">
                       <span style={{ color: avail === 0 ? "#E0664C" : "#5FB88A" }}>{avail} available</span>
