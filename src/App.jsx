@@ -371,8 +371,8 @@ export default function LabInventory() {
 
   const disassembleBuild = async (buildId) => {
     const updatedParts = parts.map((part) => {
-      if (part.has_variants) return { ...part, variants: (part.variants || []).map((v) => ({ ...v, units: (v.units || []).map((u) => u.allocatedBuildId === buildId ? { ...u, allocatedBuildId: null } : u) })) };
-      if (part.serialized) return { ...part, serials: (part.serials || []).map((s) => s.allocatedBuildId === buildId ? { ...s, allocatedBuildId: null } : s) };
+      if (part.has_variants) return { ...part, variants: (part.variants || []).map((v) => ({ ...v, units: (v.units || []).map((u) => u.allocatedBuildId === buildId ? { ...u, allocatedBuildId: null, location: part.location, location2: part.location2 } : u) })) };
+      if (part.serialized) return { ...part, serials: (part.serials || []).map((s) => s.allocatedBuildId === buildId ? { ...s, allocatedBuildId: null, location: part.location, location2: part.location2 } : s) };
       return { ...part, allocations: (part.allocations || []).filter((a) => a.buildId !== buildId) };
     });
     for (const part of updatedParts) {
@@ -397,9 +397,9 @@ export default function LabInventory() {
     const newLines = build.lines.filter((l) => l.partId !== partId);
     let partUpdates = {};
     if (part.has_variants) {
-      partUpdates.variants = part.variants.map((v) => ({ ...v, units: (v.units || []).map((u) => u.allocatedBuildId === buildId ? { ...u, allocatedBuildId: null } : u) }));
+      partUpdates.variants = part.variants.map((v) => ({ ...v, units: (v.units || []).map((u) => u.allocatedBuildId === buildId ? { ...u, allocatedBuildId: null, location: part.location, location2: part.location2 } : u) }));
     } else if (part.serialized) {
-      partUpdates.serials = part.serials.map((s) => serialIds.includes(s.id) ? { ...s, allocatedBuildId: null } : s);
+      partUpdates.serials = part.serials.map((s) => serialIds.includes(s.id) ? { ...s, allocatedBuildId: null, location: part.location, location2: part.location2 } : s);
     } else {
       partUpdates.allocations = (part.allocations || []).filter((a) => a.buildId !== buildId);
     }
