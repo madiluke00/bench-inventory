@@ -185,8 +185,8 @@ export default function LabInventory() {
         await Promise.all([supabase.from("parts").select("*"), supabase.from("builds").select("*")]);
       if (pErr) throw pErr;
       if (bErr) throw bErr;
-      setParts((partsData || []).sort((a, b) => a.name.localeCompare(b.name)));
-      setBuilds((buildsData || []).sort((a, b) => a.name.localeCompare(b.name)));
+      setParts((partsData || []).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
+      setBuilds((buildsData || []).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
     } catch {
       setError("Couldn't connect to database. Check your credentials.");
     } finally {
@@ -249,7 +249,7 @@ export default function LabInventory() {
     }
     const { error } = await supabase.from("parts").insert(part);
     if (error) { alert("Failed to save part: " + error.message); return; }
-    setParts((p) => [...p, part].sort((a, b) => a.name.localeCompare(b.name)));
+    setParts((p) => [...p, part].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
     setNewPart({ name: "", qty: "1", location: "", location2: "", category: "", serialized: false, serialsText: "", has_variants: false, variantsText: "" });
     setShowAddPart(false);
   };
@@ -363,7 +363,7 @@ export default function LabInventory() {
         await supabase.from("parts").update({ allocations: part.allocations }).eq("id", part.id);
     }
     setParts(updatedParts);
-    setBuilds((b) => [...b, build].sort((a, b) => a.name.localeCompare(b.name)));
+    setBuilds((b) => [...b, build].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
     setNewBuild({ name: "", location: "", location2: "" });
     setBuildLines([{ id: uid(), partId: "", qty: "1", serialIds: [] }]);
     setShowAddBuild(false);
@@ -1019,7 +1019,7 @@ function EditBuildForm({ build, onSave, onCancel, parts, partsById, removePartFr
           {[...build.lines].sort((a, b) => {
             const nameA = partsById[a.partId]?.name || "";
             const nameB = partsById[b.partId]?.name || "";
-            return nameA.localeCompare(nameB);
+            return nameA.localeCompare(nameB, undefined, { numeric: true });
           }).map((line) => {
             const part = partsById[line.partId];
             return (
@@ -1215,7 +1215,7 @@ function BuildsTab({ builds, parts, partsById, showAddBuild, setShowAddBuild, ne
                     {[...build.lines].sort((a, b) => {
                       const nameA = partsById[a.partId]?.name || "";
                       const nameB = partsById[b.partId]?.name || "";
-                      return nameA.localeCompare(nameB);
+                      return nameA.localeCompare(nameB, undefined, { numeric: true });
                     }).map((line) => {
                       const part = partsById[line.partId];
                       const serialNames = line.serialIds && part
