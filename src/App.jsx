@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { Plus, Trash2, Wrench, Boxes, MapPin, X, AlertCircle, Hammer, Tag, ChevronDown, ChevronUp, RefreshCw, Pencil, Check, LogOut, Shield, UserPlus, Trash } from "lucide-react";
+import { Plus, Trash2, Wrench, Boxes, MapPin, X, AlertCircle, Hammer, Tag, ChevronDown, ChevronUp, RefreshCw, Pencil, Check, LogOut, Shield, UserPlus, Trash, Package } from "lucide-react";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -177,16 +177,24 @@ export default function LabInventory() {
   const [newBuild, setNewBuild] = useState({ name: "", location: "", location2: "" });
   const [buildLines, setBuildLines] = useState([{ id: uid(), partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] }]);
   const [buildError, setBuildError] = useState("");
+  const [subbuilds, setSubbuilds] = useState([]);
+  const [showAddSubBuild, setShowAddSubBuild] = useState(false);
+  const [newSubBuild, setNewSubBuild] = useState({ name: "", location: "", location2: "" });
+  const [subBuildLines, setSubBuildLines] = useState([{ id: uid(), partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] }]);
+  const [subBuildError, setSubBuildError] = useState("");
+  const [subbuildSelections, setSubbuildSelections] = useState([]);
 
   const loadData = async () => {
     setLoading(true); setError(null);
     try {
-      const [{ data: partsData, error: pErr }, { data: buildsData, error: bErr }] =
-        await Promise.all([supabase.from("parts").select("*"), supabase.from("builds").select("*")]);
+      const [{ data: partsData, error: pErr }, { data: buildsData, error: bErr }, { data: subbuildsData, error: sErr }] =
+        await Promise.all([supabase.from("parts").select("*"), supabase.from("builds").select("*"), supabase.from("subbuilds").select("*")]);
       if (pErr) throw pErr;
       if (bErr) throw bErr;
+      if (sErr) throw sErr;
       setParts((partsData || []).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
       setBuilds((buildsData || []).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
+      setSubbuilds((subbuildsData || []).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
     } catch {
       setError("Couldn't connect to database. Check your credentials.");
     } finally {
@@ -198,11 +206,12 @@ export default function LabInventory() {
 
   const syncData = async () => {
     try {
-      const [{ data: partsData, error: pErr }, { data: buildsData, error: bErr }] =
-        await Promise.all([supabase.from("parts").select("*"), supabase.from("builds").select("*")]);
-      if (pErr || bErr) return;
+      const [{ data: partsData, error: pErr }, { data: buildsData, error: bErr }, { data: subbuildsData, error: sErr }] =
+        await Promise.all([supabase.from("parts").select("*"), supabase.from("builds").select("*"), supabase.from("subbuilds").select("*")]);
+      if (pErr || bErr || sErr) return;
       setParts(partsData || []);
       setBuilds(buildsData || []);
+      setSubbuilds(subbuildsData || []);
       setLastSynced(new Date());
     } catch {}
   };
@@ -305,6 +314,13 @@ export default function LabInventory() {
   };
 
   const addBuildLine = () => setBuildLines((l) => [...l, { id: uid(), partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] }]);
+  const addSubBuildLine = () => setSubBuildLines((l) => [...l, { id: uid(), partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] }]);
+  const removeSubBuildLine = (id) => setSubBuildLines((l) => l.filter((x) => x.id !== id));
+  const updateSubBuildLine = (id, field, value) => setSubBuildLines((l) => l.map((x) => (x.id === id ? { ...x, [field]: value } : x)));
+  const toggleSubBuildLineSerial = (id, serialId) =>
+    setSubBuildLines((l) => l.map((x) =>
+      x.id === id ? { ...x, serialIds: x.serialIds.includes(serialId) ? x.serialIds.filter((s) => s !== serialId) : [...x.serialIds, serialId] } : x
+    ));
   const removeBuildLine = (id) => setBuildLines((l) => l.filter((x) => x.id !== id));
   const updateBuildLine = (id, field, value) => setBuildLines((l) => l.map((x) => (x.id === id ? { ...x, [field]: value } : x)));
   const toggleBuildLineSerial = (id, serialId) =>
@@ -363,9 +379,20 @@ export default function LabInventory() {
         await supabase.from("parts").update({ allocations: part.allocations }).eq("id", part.id);
     }
     setParts(updatedParts);
+    for (const subbuildId of subbuildSelections) {
+      await supabase.from("subbuilds").update({ allocated_build_id: buildId, location: build.location, location2: build.location2 }).eq("id", subbuildId);
+    }
+    const subbuildLines = subbuildSelections.map((subbuildId) => ({ subbuildId }));
+    if (subbuildLines.length > 0) {
+      const finalLines = [...lines, ...subbuildLines];
+      await supabase.from("builds").update({ lines: finalLines }).eq("id", buildId);
+      build.lines = finalLines;
+    }
+    setSubbuilds((s) => s.map((x) => subbuildSelections.includes(x.id) ? { ...x, allocated_build_id: buildId, location: build.location, location2: build.location2 } : x));
     setBuilds((b) => [...b, build].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
     setNewBuild({ name: "", location: "", location2: "" });
-    setBuildLines([{ id: uid(), partId: "", qty: "1", serialIds: [] }]);
+    setBuildLines([{ id: uid(), partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] }]);
+    setSubbuildSelections([]);
     setShowAddBuild(false);
   };
 
@@ -383,6 +410,14 @@ export default function LabInventory() {
         await supabase.from("parts").update({ serials: part.serials }).eq("id", part.id);
       if (!part.serialized && !part.has_variants && JSON.stringify(part.allocations) !== JSON.stringify(orig.allocations))
         await supabase.from("parts").update({ allocations: part.allocations }).eq("id", part.id);
+    }
+    const build = builds.find((b) => b.id === buildId);
+    if (build) {
+      const subbuildLines = (build.lines || []).filter((l) => l.subbuildId);
+      for (const line of subbuildLines) {
+        await supabase.from("subbuilds").update({ allocated_build_id: null }).eq("id", line.subbuildId);
+      }
+      setSubbuilds((s) => s.map((x) => subbuildLines.some((l) => l.subbuildId === x.id) ? { ...x, allocated_build_id: null } : x));
     }
     const { error } = await supabase.from("builds").delete().eq("id", buildId);
     if (error) { alert("Failed to disassemble: " + error.message); return; }
@@ -480,7 +515,105 @@ export default function LabInventory() {
     }
   };
 
+  const createSubBuild = async () => {
+    setSubBuildError("");
+    if (!newSubBuild.name.trim()) { setSubBuildError("Give the sub-build a name."); return; }
+    const lines = [];
+    for (const l of subBuildLines) {
+      if (!l.partId) continue;
+      const part = parts.find((p) => p.id === l.partId);
+      if (!part) continue;
+      if (part.has_variants) {
+        if (l.variantId && l.unitIds && l.unitIds.length > 0) lines.push({ partId: l.partId, qty: l.unitIds.length, variantId: l.variantId, unitIds: l.unitIds });
+      } else if (part.serialized) {
+        if (l.serialIds.length > 0) lines.push({ partId: l.partId, qty: l.serialIds.length, serialIds: l.serialIds });
+      } else {
+        const qty = parseInt(l.qty, 10) || 0;
+        if (qty > 0) lines.push({ partId: l.partId, qty });
+      }
+    }
+    if (lines.length === 0) { setSubBuildError("Add at least one part."); return; }
+    for (const line of lines) {
+      const part = parts.find((p) => p.id === line.partId);
+      if (!part) continue;
+      if (part.has_variants) {
+        const variant = (part.variants || []).find((v) => v.id === line.variantId);
+        if (variant && line.unitIds && line.unitIds.length > variantAvailableQty(variant)) { setSubBuildError(`Not enough "${part.name} — ${variant.name}" available.`); return; }
+      } else if (line.qty > availableQty(part)) {
+        setSubBuildError(`Not enough "${part.name}" available.`); return;
+      }
+    }
+    const subbuildId = uid();
+    const subbuild = { id: subbuildId, name: newSubBuild.name.trim(), location: newSubBuild.location.trim() || "Lab", location2: newSubBuild.location2.trim(), lines, allocated_build_id: null, created_at: new Date().toISOString() };
+    const { error: sErr } = await supabase.from("subbuilds").insert(subbuild);
+    if (sErr) { alert("Failed to save sub-build: " + sErr.message); return; }
+    const updatedParts = parts.map((part) => {
+      const line = lines.find((l) => l.partId === part.id);
+      if (!line) return part;
+      if (part.has_variants) return { ...part, variants: (part.variants || []).map((v) => v.id === line.variantId ? { ...v, units: (v.units || []).map((u) => (line.unitIds || []).includes(u.id) ? { ...u, allocatedBuildId: subbuildId, location: subbuild.location, location2: subbuild.location2 } : u) } : v) };
+      if (part.serialized) return { ...part, serials: part.serials.map((s) => line.serialIds.includes(s.id) ? { ...s, allocatedBuildId: subbuildId, location: subbuild.location, location2: subbuild.location2 } : s) };
+      return { ...part, allocations: [...(part.allocations || []), { buildId: subbuildId, qty: line.qty, location: subbuild.location, location2: subbuild.location2 }] };
+    });
+    for (const part of updatedParts) {
+      const orig = parts.find((p) => p.id === part.id);
+      if (part.has_variants && JSON.stringify(part.variants) !== JSON.stringify(orig.variants)) await supabase.from("parts").update({ variants: part.variants }).eq("id", part.id);
+      if (part.serialized && JSON.stringify(part.serials) !== JSON.stringify(orig.serials)) await supabase.from("parts").update({ serials: part.serials }).eq("id", part.id);
+      if (!part.serialized && !part.has_variants && JSON.stringify(part.allocations) !== JSON.stringify(orig.allocations)) await supabase.from("parts").update({ allocations: part.allocations }).eq("id", part.id);
+    }
+    setParts(updatedParts);
+    setSubbuilds((s) => [...s, subbuild].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
+    setNewSubBuild({ name: "", location: "", location2: "" });
+    setSubBuildLines([{ id: uid(), partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] }]);
+    setShowAddSubBuild(false);
+  };
+
+  const disassembleSubBuild = async (subbuildId) => {
+    const updatedParts = parts.map((part) => {
+      if (part.has_variants) return { ...part, variants: (part.variants || []).map((v) => ({ ...v, units: (v.units || []).map((u) => u.allocatedBuildId === subbuildId ? { ...u, allocatedBuildId: null, location: part.location, location2: part.location2 } : u) })) };
+      if (part.serialized) return { ...part, serials: (part.serials || []).map((s) => s.allocatedBuildId === subbuildId ? { ...s, allocatedBuildId: null, location: part.location, location2: part.location2 } : s) };
+      return { ...part, allocations: (part.allocations || []).filter((a) => a.buildId !== subbuildId) };
+    });
+    for (const part of updatedParts) {
+      const orig = parts.find((p) => p.id === part.id);
+      if (part.has_variants && JSON.stringify(part.variants) !== JSON.stringify(orig.variants)) await supabase.from("parts").update({ variants: part.variants }).eq("id", part.id);
+      if (part.serialized && JSON.stringify(part.serials) !== JSON.stringify(orig.serials)) await supabase.from("parts").update({ serials: part.serials }).eq("id", part.id);
+      if (!part.serialized && !part.has_variants && JSON.stringify(part.allocations) !== JSON.stringify(orig.allocations)) await supabase.from("parts").update({ allocations: part.allocations }).eq("id", part.id);
+    }
+    const { error } = await supabase.from("subbuilds").delete().eq("id", subbuildId);
+    if (error) { alert("Failed to disassemble: " + error.message); return; }
+    setParts(updatedParts);
+    setSubbuilds((s) => s.filter((x) => x.id !== subbuildId));
+  };
+
+  const updateSubBuild = async (subbuildId, updates) => {
+    const { error } = await supabase.from("subbuilds").update(updates).eq("id", subbuildId);
+    if (error) return;
+    setSubbuilds((s) => s.map((x) => (x.id === subbuildId ? { ...x, ...updates } : x)));
+  };
+
+  const addSubbuildToMainBuild = async (buildId, subbuildId) => {
+    const build = builds.find((b) => b.id === buildId);
+    const subbuild = subbuilds.find((s) => s.id === subbuildId);
+    if (!build || !subbuild || subbuild.allocated_build_id) return;
+    const newLines = [...build.lines, { subbuildId }];
+    await supabase.from("builds").update({ lines: newLines }).eq("id", buildId);
+    await supabase.from("subbuilds").update({ allocated_build_id: buildId, location: build.location, location2: build.location2 }).eq("id", subbuildId);
+    setBuilds((b) => b.map((x) => x.id === buildId ? { ...x, lines: newLines } : x));
+    setSubbuilds((s) => s.map((x) => x.id === subbuildId ? { ...x, allocated_build_id: buildId, location: build.location, location2: build.location2 } : x));
+  };
+
+  const removeSubbuildFromMainBuild = async (buildId, subbuildId) => {
+    const build = builds.find((b) => b.id === buildId);
+    if (!build) return;
+    const newLines = build.lines.filter((l) => l.subbuildId !== subbuildId);
+    await supabase.from("builds").update({ lines: newLines }).eq("id", buildId);
+    await supabase.from("subbuilds").update({ allocated_build_id: null }).eq("id", subbuildId);
+    setBuilds((b) => b.map((x) => x.id === buildId ? { ...x, lines: newLines } : x));
+    setSubbuilds((s) => s.map((x) => x.id === subbuildId ? { ...x, allocated_build_id: null } : x));
+  };
+
   const partsById = Object.fromEntries(parts.map((p) => [p.id, p]));
+  const subbuildsById = Object.fromEntries(subbuilds.map((s) => [s.id, s]));
 
   if (authLoading) return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: "#0F1714" }}>
@@ -510,7 +643,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v2.4</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v3.0</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -528,7 +661,7 @@ export default function LabInventory() {
           </div>
           <p className="mt-1 text-xs" style={{ color: "#8FA39A" }}>Parts inventory &amp; build tracking</p>
           <div className="flex gap-1 mt-5">
-            {[{ id: "parts", label: "Parts", icon: Boxes }, { id: "builds", label: "Builds", icon: Hammer }, ...(isAdmin ? [{ id: "admin", label: "Admin", icon: Shield }] : [])].map((t) => (
+            {[{ id: "parts", label: "Parts", icon: Boxes }, { id: "subbuilds", label: "Sub-builds", icon: Package }, { id: "builds", label: "Builds", icon: Hammer }, ...(isAdmin ? [{ id: "admin", label: "Admin", icon: Shield }] : [])].map((t) => (
               <button key={t.id} onClick={() => setTab(t.id)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-t transition-colors"
                 style={{ background: tab === t.id ? "#141F1B" : "transparent", color: tab === t.id ? "#EAF0EC" : "#8FA39A", border: "1px solid", borderColor: tab === t.id ? "#233029" : "transparent", borderBottom: tab === t.id ? "1px solid #141F1B" : "1px solid transparent", marginBottom: "-1px" }}>
                 <t.icon size={13} />{t.label}
@@ -547,12 +680,25 @@ export default function LabInventory() {
             parts={parts} showAddPart={showAddPart} setShowAddPart={setShowAddPart}
             newPart={newPart} setNewPart={setNewPart} addPart={addPart}
             deletePart={deletePart} adjustQty={adjustQty} updatePart={updatePart}
-            updateSerial={updateSerial} addSerial={addSerial} removeSerial={removeSerial} builds={builds}
+            updateSerial={updateSerial} addSerial={addSerial} removeSerial={removeSerial}
+            builds={builds} subbuilds={subbuilds} isAdmin={isAdmin}
+          />
+        ) : tab === "subbuilds" ? (
+          <SubBuildsTab
+            subbuilds={subbuilds} parts={parts} partsById={partsById} builds={builds}
+            showAddSubBuild={showAddSubBuild} setShowAddSubBuild={setShowAddSubBuild}
+            newSubBuild={newSubBuild} setNewSubBuild={setNewSubBuild}
+            subBuildLines={subBuildLines} addSubBuildLine={addSubBuildLine}
+            removeSubBuildLine={removeSubBuildLine} updateSubBuildLine={updateSubBuildLine}
+            toggleSubBuildLineSerial={toggleSubBuildLineSerial} createSubBuild={createSubBuild}
+            subBuildError={subBuildError} disassembleSubBuild={disassembleSubBuild} updateSubBuild={updateSubBuild}
             isAdmin={isAdmin}
           />
         ) : tab === "builds" ? (
           <BuildsTab
             builds={builds} parts={parts} partsById={partsById}
+            subbuilds={subbuilds} subbuildsById={subbuildsById}
+            subbuildSelections={subbuildSelections} setSubbuildSelections={setSubbuildSelections}
             showAddBuild={showAddBuild} setShowAddBuild={setShowAddBuild}
             newBuild={newBuild} setNewBuild={setNewBuild}
             buildLines={buildLines} addBuildLine={addBuildLine}
@@ -560,6 +706,7 @@ export default function LabInventory() {
             toggleBuildLineSerial={toggleBuildLineSerial} createBuild={createBuild}
             buildError={buildError} disassembleBuild={disassembleBuild} updateBuild={updateBuild}
             removePartFromBuild={removePartFromBuild} addPartToBuild={addPartToBuild}
+            addSubbuildToMainBuild={addSubbuildToMainBuild} removeSubbuildFromMainBuild={removeSubbuildFromMainBuild}
             isAdmin={isAdmin}
           />
         ) : (
@@ -666,7 +813,8 @@ function VariantUnitAdd({ part, variant, updatePart }) {
 }
 
 // ---- PARTS TAB ----
-function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, addPart, deletePart, adjustQty, updatePart, updateSerial, addSerial, removeSerial, builds, isAdmin }) {
+function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, addPart, deletePart, adjustQty, updatePart, updateSerial, addSerial, removeSerial, builds, subbuilds, isAdmin }) {
+  const allBuildsAndSubbuilds = [...(builds || []), ...(subbuilds || [])];
   const [expanded, setExpanded] = useState({});
   const [serialDraft, setSerialDraft] = useState({});
   const [editingPartId, setEditingPartId] = useState(null);
@@ -877,7 +1025,7 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                                         </div>
                                       )}
                                       {Object.values(buildGroups).map((bg, bgi) => {
-                                        const b = bg.buildId ? builds.find((bd) => bd.id === bg.buildId) : null;
+                                        const b = bg.buildId ? allBuildsAndSubbuilds.find((bd) => bd.id === bg.buildId) : null;
                                         return (
                                           <div key={bgi} className="pl-2">
                                             {b && <div className="text-[10px] mb-0.5" style={{ color: "#D98A4B" }}>in {b.name}</div>}
@@ -936,7 +1084,7 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                             const key = `${loc}|||${loc2}`;
                             if (!groups[key]) groups[key] = { location: loc, location2: loc2, allocatedQty: 0, buildNames: [] };
                             groups[key].allocatedQty += a.qty;
-                            const b = builds.find((bd) => bd.id === a.buildId);
+                            const b = allBuildsAndSubbuilds.find((bd) => bd.id === a.buildId);
                             groups[key].buildNames.push(b ? b.name : "(deleted)");
                           }
                           if (avail > 0) {
@@ -1002,7 +1150,7 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                                     )}
                                     <div className="flex flex-col gap-2 pl-2">
                                       {Object.values(buildGroups).map((bg, bgi) => {
-                                        const b = bg.buildId ? builds.find((bd) => bd.id === bg.buildId) : null;
+                                        const b = bg.buildId ? allBuildsAndSubbuilds.find((bd) => bd.id === bg.buildId) : null;
                                         return (
                                           <div key={bgi}>
                                             {b && <div className="text-[10px] mb-1" style={{ color: "#D98A4B" }}>in {b.name}</div>}
@@ -1094,8 +1242,167 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
   );
 }
 
+// ---- SUB-BUILDS TAB ----
+function SubBuildsTab({ subbuilds, parts, partsById, builds, showAddSubBuild, setShowAddSubBuild, newSubBuild, setNewSubBuild, subBuildLines, addSubBuildLine, removeSubBuildLine, updateSubBuildLine, toggleSubBuildLineSerial, createSubBuild, subBuildError, disassembleSubBuild, updateSubBuild, isAdmin }) {
+  const [editingId, setEditingId] = useState(null);
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-sm" style={{ color: "#8FA39A" }}>{subbuilds.length} sub-build{subbuilds.length === 1 ? "" : "s"}</h2>
+        {isAdmin && <button onClick={() => setShowAddSubBuild((v) => !v)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded" style={{ background: "#1B2622", border: "1px solid #2A3A33", color: "#5FB88A" }}>
+          <Plus size={13} /> New sub-build
+        </button>}
+      </div>
+      {showAddSubBuild && (
+        <div className="bench-card rounded p-4 mb-4">
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <Field label="Sub-build name"><input autoFocus className={`${inputCls} bench-input`} placeholder="e.g. RPi Box 101" value={newSubBuild.name} onChange={(e) => setNewSubBuild((b) => ({ ...b, name: e.target.value }))} /></Field>
+            <div />
+            <Field label="Primary Location"><input className={`${inputCls} bench-input`} placeholder="e.g. CCWF" value={newSubBuild.location} onChange={(e) => setNewSubBuild((b) => ({ ...b, location: e.target.value }))} /></Field>
+            <Field label="Sub Location"><input className={`${inputCls} bench-input`} placeholder="e.g. Lab" value={newSubBuild.location2} onChange={(e) => setNewSubBuild((b) => ({ ...b, location2: e.target.value }))} /></Field>
+          </div>
+          <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: "#8FA39A" }}>Parts</div>
+          <div className="flex flex-col gap-2">
+            {subBuildLines.map((line) => {
+              const selected = partsById[line.partId];
+              const avail = selected ? availableQty(selected) : null;
+              return (
+                <div key={line.id} className="flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <select value={line.partId} onChange={(e) => updateSubBuildLine(line.id, "partId", e.target.value)} className={`${inputCls} bench-input flex-1`}>
+                      <option value="">Select part…</option>
+                      {parts.map((p) => (
+                        <option key={p.id} value={p.id} disabled={availableQty(p) <= 0}>
+                          {p.name} ({availableQty(p)} free){p.serialized ? " — serialized" : ""}
+                        </option>
+                      ))}
+                    </select>
+                    {selected && !selected.serialized && !selected.has_variants && (
+                      <input type="number" min="1" max={avail ?? undefined} value={line.qty} onChange={(e) => updateSubBuildLine(line.id, "qty", e.target.value)} className={`${inputCls} bench-input w-16`} />
+                    )}
+                    <button onClick={() => removeSubBuildLine(line.id)} style={{ color: "#6B8077" }}><X size={14} /></button>
+                  </div>
+                  {selected && selected.has_variants && (
+                    <div className="ml-1 pl-2 flex flex-col gap-2 border-l" style={{ borderColor: "#233029" }}>
+                      <span className="text-[10px]" style={{ color: "#6B8077" }}>Pick units ({(line.unitIds || []).length} selected)</span>
+                      {(selected.variants || []).filter((v) => variantAvailableQty(v) > 0).map((v) => {
+                        const freeUnits = (v.units || []).filter((u) => !u.allocatedBuildId);
+                        return (
+                          <div key={v.id}>
+                            <div className="text-[11px] font-semibold mb-1" style={{ color: "#EAF0EC" }}>{v.name} ({variantAvailableQty(v)} free)</div>
+                            {freeUnits.map((u) => (
+                              <label key={u.id} className="flex items-center gap-2 text-[11px] cursor-pointer mb-0.5" style={{ color: "#8FA39A" }}>
+                                <input type="checkbox" checked={line.variantId === v.id && (line.unitIds || []).includes(u.id)}
+                                  onChange={() => { updateSubBuildLine(line.id, "variantId", v.id); const current = line.variantId === v.id ? (line.unitIds || []) : []; const newUnitIds = current.includes(u.id) ? current.filter((x) => x !== u.id) : [...current, u.id]; updateSubBuildLine(line.id, "unitIds", newUnitIds); }}
+                                  style={{ accentColor: "#D98A4B" }} />
+                                {u.location || "No location"}{u.location2 ? ` · ${u.location2}` : ""}
+                              </label>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {selected && selected.serialized && (
+                    <div className="ml-1 pl-2 flex flex-col gap-1 border-l" style={{ borderColor: "#233029" }}>
+                      <span className="text-[10px]" style={{ color: "#6B8077" }}>Pick specific units ({line.serialIds.length} selected)</span>
+                      {(selected.serials || []).filter((s) => !s.allocatedBuildId).map((s) => (
+                        <label key={s.id} className="flex items-center gap-2 text-[11px] cursor-pointer" style={{ color: "#EAF0EC" }}>
+                          <input type="checkbox" checked={line.serialIds.includes(s.id)} onChange={() => toggleSubBuildLineSerial(line.id, s.id)} style={{ accentColor: "#D98A4B" }} />
+                          {s.serial}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <button onClick={addSubBuildLine} className="text-xs mt-2 flex items-center gap-1" style={{ color: "#5FB88A" }}><Plus size={12} /> Add another part</button>
+          {subBuildError && <div className="flex items-center gap-1.5 mt-3 text-xs" style={{ color: "#E0664C" }}><AlertCircle size={13} />{subBuildError}</div>}
+          <div className="flex gap-2 mt-4">
+            <button onClick={createSubBuild} className="px-3 py-1.5 text-xs rounded" style={{ background: "#5FB88A", color: "#0F1714", fontWeight: 600 }}>Create sub-build</button>
+            <button onClick={() => setShowAddSubBuild(false)} className="px-3 py-1.5 text-xs rounded" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>Cancel</button>
+          </div>
+        </div>
+      )}
+      {subbuilds.length === 0 && !showAddSubBuild && (
+        <div className="bench-card rounded p-6 text-center">
+          <p className="text-sm" style={{ color: "#8FA39A" }}>No sub-builds yet. Create one from parts to slot into a main build.</p>
+        </div>
+      )}
+      <div className="flex flex-col gap-2">
+        {subbuilds.map((subbuild) => {
+          const isEditing = editingId === subbuild.id;
+          const parentBuild = subbuild.allocated_build_id ? builds.find((b) => b.id === subbuild.allocated_build_id) : null;
+          return (
+            <div key={subbuild.id} className="bench-card rounded p-3.5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <Package size={13} color="#5FB88A" />
+                    <span className="text-sm font-semibold">{subbuild.name}</span>
+                    {parentBuild
+                      ? <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "#1B2622", color: "#D98A4B" }}>in {parentBuild.name}</span>
+                      : <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "#1B2622", color: "#5FB88A" }}>free</span>
+                    }
+                  </div>
+                  <LocationDisplay location={subbuild.location} location2={subbuild.location2} />
+                  <div className="mt-2 flex flex-col gap-0.5">
+                    {(subbuild.lines || []).sort((a, b) => (partsById[a.partId]?.name || "").localeCompare(partsById[b.partId]?.name || "", undefined, { numeric: true })).map((line) => {
+                      const part = partsById[line.partId];
+                      const variantName = line.variantId && part ? part.variants?.find((v) => v.id === line.variantId)?.name : null;
+                      const serialNames = line.serialIds && part ? line.serialIds.map((sid) => part.serials?.find((s) => s.id === sid)?.serial).filter(Boolean) : null;
+                      return (
+                        <span key={`${line.partId}-${line.variantId || ""}`} className="text-[11px]" style={{ color: "#6B8077" }}>
+                          ↳ {line.qty}× {part ? part.name : "(deleted)"}
+                          {variantName && <span style={{ color: "#8FA39A" }}> — {variantName}</span>}
+                          {serialNames && serialNames.length > 0 && <span style={{ color: "#8FA39A" }}> (SN: {serialNames.join(", ")})</span>}
+                        </span>
+                      );
+                    })}
+                  </div>
+                  {isEditing && (
+                    <div className="mt-3 pt-3 border-t" style={{ borderColor: "#233029" }}>
+                      <EditSubBuildForm subbuild={subbuild} onSave={async (updates) => { await updateSubBuild(subbuild.id, updates); setEditingId(null); }} onCancel={() => setEditingId(null)} />
+                    </div>
+                  )}
+                </div>
+                {isAdmin && !subbuild.allocated_build_id && (
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button onClick={() => setEditingId(isEditing ? null : subbuild.id)} className="w-6 h-6 rounded flex items-center justify-center" style={{ color: isEditing ? "#5FB88A" : "#8FA39A", border: "1px solid #2A3A33" }}>
+                      <Pencil size={12} />
+                    </button>
+                    <button onClick={() => disassembleSubBuild(subbuild.id)} className="px-2.5 py-1 text-[11px] rounded" style={{ border: "1px solid #2A3A33", color: "#E0664C" }}>Disassemble</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function EditSubBuildForm({ subbuild, onSave, onCancel }) {
+  const [draft, setDraft] = useState({ name: subbuild.name, location: subbuild.location || "", location2: subbuild.location2 || "" });
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <Field label="Name"><input autoFocus className={`${inputCls} bench-input`} value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} /></Field>
+      <div />
+      <Field label="Primary Location"><input className={`${inputCls} bench-input`} value={draft.location} onChange={(e) => setDraft((d) => ({ ...d, location: e.target.value }))} /></Field>
+      <Field label="Sub Location"><input className={`${inputCls} bench-input`} value={draft.location2} onChange={(e) => setDraft((d) => ({ ...d, location2: e.target.value }))} /></Field>
+      <div className="col-span-2 flex gap-2 mt-1">
+        <button onClick={() => onSave({ name: draft.name.trim(), location: draft.location.trim() || "Lab", location2: draft.location2.trim() })} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded" style={{ background: "#5FB88A", color: "#0F1714", fontWeight: 600 }}><Check size={12} /> Save</button>
+        <button onClick={onCancel} className="px-3 py-1.5 text-xs rounded" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
 // ---- EDIT BUILD FORM ----
-function EditBuildForm({ build, onSave, onCancel, parts, partsById, removePartFromBuild, addPartToBuild }) {
+function EditBuildForm({ build, onSave, onCancel, parts, partsById, subbuildsById, removePartFromBuild, addPartToBuild, removeSubbuildFromMainBuild }) {
   const [draft, setDraft] = useState({ name: build.name, location: build.location || "", location2: build.location2 || "" });
   const [addLine, setAddLine] = useState({ partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] });
   const [showAdd, setShowAdd] = useState(false);
@@ -1130,10 +1437,24 @@ function EditBuildForm({ build, onSave, onCancel, parts, partsById, removePartFr
         <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: "#8FA39A" }}>Parts in this build</div>
         <div className="flex flex-col gap-1.5">
           {[...build.lines].sort((a, b) => {
-            const nameA = partsById[a.partId]?.name || "";
-            const nameB = partsById[b.partId]?.name || "";
+            const nameA = a.subbuildId ? (subbuildsById?.[a.subbuildId]?.name || "") : (partsById[a.partId]?.name || "");
+            const nameB = b.subbuildId ? (subbuildsById?.[b.subbuildId]?.name || "") : (partsById[b.partId]?.name || "");
             return nameA.localeCompare(nameB, undefined, { numeric: true });
           }).map((line) => {
+            if (line.subbuildId) {
+              const sb = subbuildsById?.[line.subbuildId];
+              return (
+                <div key={line.subbuildId} className="flex items-center justify-between gap-2 text-[11px] px-2 py-1.5 rounded" style={{ background: "#1B2622" }}>
+                  <span className="flex items-center gap-1.5" style={{ color: "#EAF0EC" }}>
+                    <Package size={10} color="#5FB88A" />
+                    {sb ? sb.name : "(deleted sub-build)"}
+                  </span>
+                  <button onClick={() => removeSubbuildFromMainBuild(build.id, line.subbuildId)} className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px]" style={{ border: "1px solid #2A3A33", color: "#E0664C" }}>
+                    <X size={10} /> Remove
+                  </button>
+                </div>
+              );
+            }
             const part = partsById[line.partId];
             return (
               <div key={line.partId} className="flex items-center justify-between gap-2 text-[11px] px-2 py-1.5 rounded" style={{ background: "#1B2622" }}>
@@ -1212,8 +1533,9 @@ function EditBuildForm({ build, onSave, onCancel, parts, partsById, removePartFr
 }
 
 // ---- BUILDS TAB ----
-function BuildsTab({ builds, parts, partsById, showAddBuild, setShowAddBuild, newBuild, setNewBuild, buildLines, addBuildLine, removeBuildLine, updateBuildLine, toggleBuildLineSerial, createBuild, buildError, disassembleBuild, updateBuild, removePartFromBuild, addPartToBuild, isAdmin }) {
+function BuildsTab({ builds, parts, partsById, subbuilds, subbuildsById, subbuildSelections, setSubbuildSelections, showAddBuild, setShowAddBuild, newBuild, setNewBuild, buildLines, addBuildLine, removeBuildLine, updateBuildLine, toggleBuildLineSerial, createBuild, buildError, disassembleBuild, updateBuild, removePartFromBuild, addPartToBuild, addSubbuildToMainBuild, removeSubbuildFromMainBuild, isAdmin }) {
   const [editingId, setEditingId] = useState(null);
+  const freeSubbuilds = (subbuilds || []).filter((s) => !s.allocated_build_id);
 
   return (
     <div>
@@ -1298,6 +1620,21 @@ function BuildsTab({ builds, parts, partsById, showAddBuild, setShowAddBuild, ne
             })}
           </div>
           <button onClick={addBuildLine} className="text-xs mt-2 flex items-center gap-1" style={{ color: "#5FB88A" }}><Plus size={12} /> Add another part</button>
+          {freeSubbuilds.length > 0 && (
+            <div className="mt-3 pt-3 border-t" style={{ borderColor: "#233029" }}>
+              <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: "#8FA39A" }}>Sub-builds</div>
+              <div className="flex flex-col gap-1">
+                {freeSubbuilds.map((s) => (
+                  <label key={s.id} className="flex items-center gap-2 text-[11px] cursor-pointer" style={{ color: "#EAF0EC" }}>
+                    <input type="checkbox" checked={subbuildSelections.includes(s.id)} onChange={() => setSubbuildSelections((prev) => prev.includes(s.id) ? prev.filter((x) => x !== s.id) : [...prev, s.id])} style={{ accentColor: "#5FB88A" }} />
+                    <Package size={11} color="#5FB88A" />
+                    {s.name}
+                    <span style={{ color: "#5C6E66" }}>— {s.location}{s.location2 ? ` · ${s.location2}` : ""}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
           {buildError && <div className="flex items-center gap-1.5 mt-3 text-xs" style={{ color: "#E0664C" }}><AlertCircle size={13} />{buildError}</div>}
           <div className="flex gap-2 mt-4">
             <button onClick={createBuild} className="px-3 py-1.5 text-xs rounded" style={{ background: "#D98A4B", color: "#0F1714", fontWeight: 600 }}>Create build</button>
@@ -1326,17 +1663,22 @@ function BuildsTab({ builds, parts, partsById, showAddBuild, setShowAddBuild, ne
                   <LocationDisplay location={build.location} location2={build.location2} />
                   <div className="mt-2 flex flex-col gap-0.5">
                     {[...build.lines].sort((a, b) => {
-                      const nameA = partsById[a.partId]?.name || "";
-                      const nameB = partsById[b.partId]?.name || "";
+                      const nameA = a.subbuildId ? (subbuildsById?.[a.subbuildId]?.name || "") : (partsById[a.partId]?.name || "");
+                      const nameB = b.subbuildId ? (subbuildsById?.[b.subbuildId]?.name || "") : (partsById[b.partId]?.name || "");
                       return nameA.localeCompare(nameB, undefined, { numeric: true });
                     }).map((line) => {
+                      if (line.subbuildId) {
+                        const sb = subbuildsById?.[line.subbuildId];
+                        return (
+                          <span key={line.subbuildId} className="text-[11px] flex items-center gap-1" style={{ color: "#6B8077" }}>
+                            <Package size={10} color="#5FB88A" />
+                            {sb ? sb.name : "(deleted sub-build)"}
+                          </span>
+                        );
+                      }
                       const part = partsById[line.partId];
-                      const serialNames = line.serialIds && part
-                        ? line.serialIds.map((sid) => part.serials?.find((s) => s.id === sid)?.serial).filter(Boolean)
-                        : null;
-                      const variantName = line.variantId && part
-                        ? part.variants?.find((v) => v.id === line.variantId)?.name
-                        : null;
+                      const serialNames = line.serialIds && part ? line.serialIds.map((sid) => part.serials?.find((s) => s.id === sid)?.serial).filter(Boolean) : null;
+                      const variantName = line.variantId && part ? part.variants?.find((v) => v.id === line.variantId)?.name : null;
                       return (
                         <span key={`${line.partId}-${line.variantId || ""}`} className="text-[11px]" style={{ color: "#6B8077" }}>
                           ↳ {line.qty}× {part ? part.name : "(deleted part)"}
@@ -1347,7 +1689,7 @@ function BuildsTab({ builds, parts, partsById, showAddBuild, setShowAddBuild, ne
                     })}
                   </div>
                   {isEditing && (
-                    <EditBuildForm build={build} onSave={async (updates) => { await updateBuild(build.id, updates); }} onCancel={() => setEditingId(null)} parts={parts} partsById={partsById} removePartFromBuild={removePartFromBuild} addPartToBuild={addPartToBuild} />
+                    <EditBuildForm build={build} onSave={async (updates) => { await updateBuild(build.id, updates); }} onCancel={() => setEditingId(null)} parts={parts} partsById={partsById} subbuildsById={subbuildsById} removePartFromBuild={removePartFromBuild} addPartToBuild={addPartToBuild} removeSubbuildFromMainBuild={removeSubbuildFromMainBuild} />
                   )}
                 </div>
                 {isAdmin && <div className="flex items-center gap-1.5 shrink-0">
