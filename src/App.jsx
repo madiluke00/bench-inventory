@@ -834,7 +834,6 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                     <div className="flex items-baseline gap-2 flex-wrap">
                       <span className="text-sm font-semibold">{part.name}</span>
                       {part.category && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "#1B2622", color: "#5FB88A" }}>{part.category}</span>}
-                      {part.serialized && <span className="text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1" style={{ background: "#1B2622", color: "#D98A4B" }}><Tag size={9} /> serialized</span>}
                     </div>
                     <div className="text-xs mt-1">
                       <span style={{ color: avail === 0 ? "#E0664C" : "#5FB88A" }}>{avail} available</span>
