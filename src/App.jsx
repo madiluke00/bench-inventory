@@ -643,7 +643,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v3.0</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v3.1</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -1528,6 +1528,30 @@ function EditBuildForm({ build, onSave, onCancel, parts, partsById, subbuildsByI
           <button onClick={() => setShowAdd(true)} className="flex items-center gap-1 text-[11px] mt-2" style={{ color: "#5FB88A" }}><Plus size={11} /> Add part to build</button>
         )}
       </div>
+
+      {(() => {
+        const freeSubbuilds = Object.values(subbuildsById || {}).filter((s) => !s.allocated_build_id);
+        if (freeSubbuilds.length === 0) return null;
+        return (
+          <div className="mt-3 pt-3 border-t" style={{ borderColor: "#233029" }}>
+            <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: "#8FA39A" }}>Add sub-build</div>
+            <div className="flex flex-col gap-1">
+              {freeSubbuilds.map((s) => (
+                <div key={s.id} className="flex items-center justify-between gap-2 text-[11px] px-2 py-1.5 rounded" style={{ background: "#1B2622" }}>
+                  <span className="flex items-center gap-1.5" style={{ color: "#EAF0EC" }}>
+                    <Package size={10} color="#5FB88A" />
+                    {s.name}
+                    <span style={{ color: "#5C6E66" }}>— {s.location}{s.location2 ? ` · ${s.location2}` : ""}</span>
+                  </span>
+                  <button onClick={() => addSubbuildToMainBuild(build.id, s.id)} className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px]" style={{ border: "1px solid #2A3A33", color: "#5FB88A" }}>
+                    <Plus size={10} /> Add
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
