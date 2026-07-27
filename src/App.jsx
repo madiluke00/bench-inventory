@@ -1029,14 +1029,38 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                                         return (
                                           <div key={bgi} className="pl-2">
                                             {b && <div className="text-[10px] mb-0.5" style={{ color: "#D98A4B" }}>in {b.name}</div>}
-                                            <div className="flex items-center justify-between gap-2 text-[11px]">
-                                              <span className="flex items-center gap-1.5">
-                                                <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: bg.buildId ? "#D98A4B" : "#5FB88A" }} />
-                                                <span style={{ color: "#8FA39A" }}>{v.name}{bg.units.length > 1 ? ` ×${bg.units.length}` : ""}</span>
-                                              </span>
-                                              {!bg.buildId && (
-                                                <button onClick={() => updatePart(part.id, { variants: part.variants.map((x) => x.id === v.id ? { ...x, units: x.units.filter((y) => y.id !== bg.units[bg.units.length - 1].id) } : x) })} style={{ color: "#E0664C" }} className="w-4 h-4 flex items-center justify-center"><X size={10} /></button>
-                                              )}
+                                            <div className="flex flex-col gap-1">
+                                              {bg.units.map((u) => {
+                                                const isEditingUnit = editingSerialId === u.id;
+                                                return (
+                                                  <div key={u.id} className="flex flex-col gap-0.5">
+                                                    <div className="flex items-center justify-between gap-2 text-[11px]">
+                                                      <span className="flex items-center gap-1.5">
+                                                        <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: bg.buildId ? "#D98A4B" : "#5FB88A" }} />
+                                                        <span style={{ color: "#8FA39A" }}>{v.name}</span>
+                                                      </span>
+                                                      <div className="flex items-center gap-1 shrink-0">
+                                                        <button onClick={() => setEditingSerialId(isEditingUnit ? null : u.id)} className="w-5 h-5 rounded flex items-center justify-center" style={{ color: isEditingUnit ? "#5FB88A" : "#6B8077", border: "1px solid #2A3A33" }} title="Edit location">
+                                                          <Pencil size={10} />
+                                                        </button>
+                                                        {!bg.buildId && (
+                                                          <button onClick={() => updatePart(part.id, { variants: part.variants.map((x) => x.id === v.id ? { ...x, units: x.units.filter((y) => y.id !== u.id) } : x) })} style={{ color: "#E0664C" }} className="w-4 h-4 flex items-center justify-center"><X size={10} /></button>
+                                                        )}
+                                                      </div>
+                                                    </div>
+                                                    {isEditingUnit && (
+                                                      <EditSerialLocation
+                                                        serial={{ serial: "", location: u.location || "", location2: u.location2 || "" }}
+                                                        onSave={async (updates) => {
+                                                          await updatePart(part.id, { variants: part.variants.map((x) => x.id === v.id ? { ...x, units: x.units.map((y) => y.id === u.id ? { ...y, location: updates.location, location2: updates.location2 } : y) } : x) });
+                                                          setEditingSerialId(null);
+                                                        }}
+                                                        onCancel={() => setEditingSerialId(null)}
+                                                      />
+                                                    )}
+                                                  </div>
+                                                );
+                                              })}
                                             </div>
                                           </div>
                                         );
