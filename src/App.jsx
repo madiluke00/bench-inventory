@@ -643,7 +643,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v3.1</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v3.2</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -1426,7 +1426,7 @@ function EditSubBuildForm({ subbuild, onSave, onCancel }) {
 }
 
 // ---- EDIT BUILD FORM ----
-function EditBuildForm({ build, onSave, onCancel, parts, partsById, subbuildsById, removePartFromBuild, addPartToBuild, removeSubbuildFromMainBuild }) {
+function EditBuildForm({ build, onSave, onCancel, parts, partsById, subbuildsById, removePartFromBuild, addPartToBuild, removeSubbuildFromMainBuild, addSubbuildToMainBuild }) {
   const [draft, setDraft] = useState({ name: build.name, location: build.location || "", location2: build.location2 || "" });
   const [addLine, setAddLine] = useState({ partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] });
   const [showAdd, setShowAdd] = useState(false);
@@ -1737,7 +1737,7 @@ function BuildsTab({ builds, parts, partsById, subbuilds, subbuildsById, subbuil
                     })}
                   </div>
                   {isEditing && (
-                    <EditBuildForm build={build} onSave={async (updates) => { await updateBuild(build.id, updates); }} onCancel={() => setEditingId(null)} parts={parts} partsById={partsById} subbuildsById={subbuildsById} removePartFromBuild={removePartFromBuild} addPartToBuild={addPartToBuild} removeSubbuildFromMainBuild={removeSubbuildFromMainBuild} />
+                    <EditBuildForm build={build} onSave={async (updates) => { await updateBuild(build.id, updates); }} onCancel={() => setEditingId(null)} parts={parts} partsById={partsById} subbuildsById={subbuildsById} removePartFromBuild={removePartFromBuild} addPartToBuild={addPartToBuild} removeSubbuildFromMainBuild={removeSubbuildFromMainBuild} addSubbuildToMainBuild={addSubbuildToMainBuild} />
                   )}
                 </div>
                 {isAdmin && <div className="flex items-center gap-1.5 shrink-0">
