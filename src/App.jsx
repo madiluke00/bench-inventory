@@ -643,7 +643,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v3.2</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v3.3</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -1461,6 +1461,10 @@ function EditBuildForm({ build, onSave, onCancel, parts, partsById, subbuildsByI
         <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: "#8FA39A" }}>Parts in this build</div>
         <div className="flex flex-col gap-1.5">
           {[...build.lines].sort((a, b) => {
+            const aIsSub = !!a.subbuildId;
+            const bIsSub = !!b.subbuildId;
+            if (aIsSub && !bIsSub) return -1;
+            if (!aIsSub && bIsSub) return 1;
             const nameA = a.subbuildId ? (subbuildsById?.[a.subbuildId]?.name || "") : (partsById[a.partId]?.name || "");
             const nameB = b.subbuildId ? (subbuildsById?.[b.subbuildId]?.name || "") : (partsById[b.partId]?.name || "");
             return nameA.localeCompare(nameB, undefined, { numeric: true });
