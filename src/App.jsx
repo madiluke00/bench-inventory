@@ -1715,6 +1715,10 @@ function BuildsTab({ builds, parts, partsById, subbuilds, subbuildsById, subbuil
                   <LocationDisplay location={build.location} location2={build.location2} />
                   <div className="mt-2 flex flex-col gap-0.5">
                     {[...build.lines].sort((a, b) => {
+                      const aIsSub = !!a.subbuildId;
+                      const bIsSub = !!b.subbuildId;
+                      if (aIsSub && !bIsSub) return -1;
+                      if (!aIsSub && bIsSub) return 1;
                       const nameA = a.subbuildId ? (subbuildsById?.[a.subbuildId]?.name || "") : (partsById[a.partId]?.name || "");
                       const nameB = b.subbuildId ? (subbuildsById?.[b.subbuildId]?.name || "") : (partsById[b.partId]?.name || "");
                       return nameA.localeCompare(nameB, undefined, { numeric: true });
