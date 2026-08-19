@@ -1059,8 +1059,8 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                                                         )}
                                                       </div>
                                                     </div>
-                                                                                                        {u.notes && !isEditingUnit && (
-                                                      <div className="text-[10px] italic pl-3" style={{ color: "#6B8077" }}>📝 {u.notes}</div>
+                                                                                                         {u.notes && !isEditingUnit && (
+                                                      <div className="text-[10px] italic pl-3" style={{ color: "#6B8077" }}>Note: {u.notes}</div>
                                                     )}
                                                     {isEditingUnit && (
                                                       <EditSerialLocation
@@ -1146,8 +1146,8 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                       </div>
                     )}
 
-                    {part.notes && !isEditing && (
-                      <p className="text-[11px] mt-1.5 italic" style={{ color: "#8FA39A" }}>📝 {part.notes}</p>
+                                        {part.notes && !isEditing && (
+                      <p className="text-[11px] mt-1.5 italic" style={{ color: "#8FA39A" }}>Note: {part.notes}</p>
                     )}
 
                     {/* Edit form */}
@@ -1215,8 +1215,8 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                                                         )}
                                                       </div>
                                                                                                         </div>
-                                                    {s.notes && !isEditingSerial && (
-                                                      <div className="text-[10px] italic pl-3" style={{ color: "#6B8077" }}>📝 {s.notes}</div>
+                                                                                                        {s.notes && !isEditingSerial && (
+                                                      <div className="text-[10px] italic pl-3" style={{ color: "#6B8077" }}>Note: {s.notes}</div>
                                                     )}
                                                     {isEditingSerial && (
                                                       <EditSerialLocation serial={s} onSave={async (updates) => { await updateSerial(part.id, s.id, updates); setEditingSerialId(null); }} onCancel={() => setEditingSerialId(null)} />
