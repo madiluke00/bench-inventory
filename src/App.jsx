@@ -719,10 +719,10 @@ export default function LabInventory() {
 
 // ---- EDIT PART FORM ----
 function EditPartForm({ part, onSave, onCancel, usedQty }) {
-  const [draft, setDraft] = useState({ name: part.name, category: part.category || "", location: part.location || "", location2: part.location2 || "", qty: part.qty ?? 0, tags: part.tags || [] });
+  const [draft, setDraft] = useState({ name: part.name, category: part.category || "", location: part.location || "", location2: part.location2 || "", qty: part.qty ?? 0, tags: part.tags || [], notes: part.notes || "" });
   const save = () => {
     if (!draft.name.trim()) return;
-    const updates = { name: draft.name.trim(), category: draft.category.trim(), location: draft.location.trim() || "Lab", location2: draft.location2.trim(), tags: draft.tags };
+    const updates = { name: draft.name.trim(), category: draft.category.trim(), location: draft.location.trim() || "Lab", location2: draft.location2.trim(), tags: draft.tags, notes: draft.notes.trim() };
     if (!part.serialized) updates.qty = Math.max(usedQty, parseInt(draft.qty, 10) || 0);
     onSave(updates);
   };
@@ -758,6 +758,16 @@ function EditPartForm({ part, onSave, onCancel, usedQty }) {
           />
         </div>
       </div>
+       <div className="mt-2">
+        <Field label="Notes">
+          <textarea className={`${inputCls} bench-input`} rows={2} placeholder="Note about this part…" value={draft.notes} onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))} />
+        </Field>
+      </div>
+       <div className="mt-2">
+        <Field label="Notes">
+          <textarea className={`${inputCls} bench-input`} rows={2} placeholder="Note about this part…" value={draft.notes} onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))} />
+        </Field>
+      </div>
       <div className="flex gap-2 mt-3">
         <button onClick={save} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded" style={{ background: "#5FB88A", color: "#0F1714", fontWeight: 600 }}><Check size={12} /> Save</button>
         <button onClick={onCancel} className="px-3 py-1.5 text-xs rounded" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>Cancel</button>
@@ -768,7 +778,7 @@ function EditPartForm({ part, onSave, onCancel, usedQty }) {
 
 // ---- EDIT SERIAL ----
 function EditSerialLocation({ serial, onSave, onCancel }) {
-  const [draft, setDraft] = useState({ serial: serial.serial || "", location: serial.location || "", location2: serial.location2 || "" });
+  const [draft, setDraft] = useState({ serial: serial.serial || "", location: serial.location || "", location2: serial.location2 || "", notes: serial.notes || "" });
   return (
     <div className="flex flex-col gap-1.5 mt-1 pl-2">
       <div className="grid grid-cols-2 gap-1.5">
@@ -777,6 +787,7 @@ function EditSerialLocation({ serial, onSave, onCancel }) {
         <input className={`${inputCls} bench-input text-xs py-1`} placeholder="Primary location" value={draft.location} onChange={(e) => setDraft((d) => ({ ...d, location: e.target.value }))} />
         <input className={`${inputCls} bench-input text-xs py-1`} placeholder="Sub location" value={draft.location2} onChange={(e) => setDraft((d) => ({ ...d, location2: e.target.value }))} />
       </div>
+      <textarea className={`${inputCls} bench-input text-xs py-1`} rows={2} placeholder="Note…" value={draft.notes} onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))} />
       <div className="flex gap-1.5">
         <button onClick={() => onSave(draft)} className="flex items-center gap-1 px-2 py-0.5 text-[11px] rounded" style={{ background: "#5FB88A", color: "#0F1714", fontWeight: 600 }}><Check size={10} /> Save</button>
         <button onClick={onCancel} className="px-2 py-0.5 text-[11px] rounded" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>Cancel</button>
@@ -1048,11 +1059,14 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                                                         )}
                                                       </div>
                                                     </div>
+                                                                                                        {u.notes && !isEditingUnit && (
+                                                      <div className="text-[10px] italic pl-3" style={{ color: "#6B8077" }}>📝 {u.notes}</div>
+                                                    )}
                                                     {isEditingUnit && (
                                                       <EditSerialLocation
-                                                        serial={{ serial: "", location: u.location || "", location2: u.location2 || "" }}
+                                                        serial={{ serial: "", location: u.location || "", location2: u.location2 || "", notes: u.notes || "" }}
                                                         onSave={async (updates) => {
-                                                          await updatePart(part.id, { variants: part.variants.map((x) => x.id === v.id ? { ...x, units: x.units.map((y) => y.id === u.id ? { ...y, location: updates.location, location2: updates.location2 } : y) } : x) });
+                                                          await updatePart(part.id, { variants: part.variants.map((x) => x.id === v.id ? { ...x, units: x.units.map((y) => y.id === u.id ? { ...y, location: updates.location, location2: updates.location2, notes: updates.notes } : y) } : x) });
                                                           setEditingSerialId(null);
                                                         }}
                                                         onCancel={() => setEditingSerialId(null)}
@@ -1132,6 +1146,10 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                       </div>
                     )}
 
+                    {part.notes && !isEditing && (
+                      <p className="text-[11px] mt-1.5 italic" style={{ color: "#8FA39A" }}>📝 {part.notes}</p>
+                    )}
+
                     {/* Edit form */}
                     {isEditing && (
                       <EditPartForm part={part} usedQty={used} onSave={(updates) => handleSaveEdit(part.id, updates)} onCancel={() => setEditingPartId(null)} />
@@ -1196,7 +1214,10 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                                                           <button onClick={() => removeSerial(part.id, s.id)} style={{ color: "#E0664C" }} className="w-5 h-5 flex items-center justify-center"><X size={11} /></button>
                                                         )}
                                                       </div>
-                                                    </div>
+                                                                                                        </div>
+                                                    {s.notes && !isEditingSerial && (
+                                                      <div className="text-[10px] italic pl-3" style={{ color: "#6B8077" }}>📝 {s.notes}</div>
+                                                    )}
                                                     {isEditingSerial && (
                                                       <EditSerialLocation serial={s} onSave={async (updates) => { await updateSerial(part.id, s.id, updates); setEditingSerialId(null); }} onCancel={() => setEditingSerialId(null)} />
                                                     )}
