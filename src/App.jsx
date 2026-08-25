@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { Plus, Trash2, Wrench, Boxes, MapPin, X, AlertCircle, Hammer, Tag, ChevronDown, ChevronUp, RefreshCw, Pencil, Check, LogOut, Shield, UserPlus, Trash, Package, Search } from "lucide-react";
 
@@ -126,6 +126,115 @@ function LocationDisplay({ location, location2 }) {
 }
 
 const inputCls = "bg-transparent border rounded px-2 py-1.5 text-sm outline-none transition-colors";
+
+// ---- SUGGEST INPUT (single value, e.g. category) ----
+function SuggestInput({ value, onChange, options, placeholder, autoFocus }) {
+  const [open, setOpen] = useState(false);
+  const [highlight, setHighlight] = useState(-1);
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    const onClickOutside = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  const filtered = options.filter((o) => o.toLowerCase().includes((value || "").toLowerCase()));
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <input
+        autoFocus={autoFocus}
+        className={`${inputCls} bench-input w-full`}
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); setHighlight(-1); }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown") { e.preventDefault(); setHighlight((h) => Math.min(h + 1, filtered.length - 1)); }
+          else if (e.key === "ArrowUp") { e.preventDefault(); setHighlight((h) => Math.max(h - 1, 0)); }
+          else if (e.key === "Enter" && highlight >= 0 && filtered[highlight]) { e.preventDefault(); onChange(filtered[highlight]); setOpen(false); }
+          else if (e.key === "Escape") setOpen(false);
+        }}
+      />
+      {open && filtered.length > 0 && (
+        <div className="absolute z-10 mt-1 w-full rounded overflow-hidden" style={{ background: "#141F1B", border: "1px solid #2A3A33", maxHeight: "160px", overflowY: "auto" }}>
+          {filtered.map((opt, i) => (
+            <div
+              key={opt}
+              onMouseDown={(e) => { e.preventDefault(); onChange(opt); setOpen(false); }}
+              onMouseEnter={() => setHighlight(i)}
+              className="px-2 py-1.5 text-sm cursor-pointer"
+              style={{ background: i === highlight ? "#1B2622" : "transparent", color: "#EAF0EC" }}
+            >
+              {opt}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- TAG INPUT (chips + suggestions) ----
+function TagInput({ tags, onChange, allTags }) {
+  const [draft, setDraft] = useState("");
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    const onClickOutside = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  const addTag = (tag) => {
+    const t = tag.trim();
+    if (t && !tags.includes(t)) onChange([...tags, t]);
+    setDraft("");
+    setOpen(false);
+  };
+
+  const filtered = allTags.filter((t) => !tags.includes(t) && t.toLowerCase().includes(draft.toLowerCase()));
+
+  return (
+    <div className="flex flex-wrap gap-1.5 mt-1.5">
+      {tags.map((tag) => (
+        <span key={tag} className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded" style={{ background: "#1B2622", border: "1px solid #2A3A33", color: "#5FB88A" }}>
+          {tag}
+          <button onClick={() => onChange(tags.filter((t) => t !== tag))} style={{ color: "#6B8077" }}><X size={10} /></button>
+        </span>
+      ))}
+      <div ref={wrapRef} className="relative">
+        <input
+          placeholder="Add tag…"
+          className="text-[11px] bg-transparent outline-none border-b py-0.5"
+          style={{ color: "#EAF0EC", borderColor: "#2A3A33", width: "100px" }}
+          value={draft}
+          onChange={(e) => { setDraft(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={(e) => { if (e.key === "Enter" && draft.trim()) { e.preventDefault(); addTag(draft); } }}
+        />
+        {open && filtered.length > 0 && (
+          <div className="absolute z-10 mt-1 rounded overflow-hidden" style={{ background: "#141F1B", border: "1px solid #2A3A33", minWidth: "140px", maxHeight: "160px", overflowY: "auto" }}>
+            {filtered.map((tag) => (
+              <div
+                key={tag}
+                onMouseDown={(e) => { e.preventDefault(); addTag(tag); }}
+                className="px-2 py-1.5 text-[11px] cursor-pointer"
+                style={{ color: "#EAF0EC" }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#1B2622")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              >
+                {tag}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function LabInventory() {
   useFonts();
@@ -643,7 +752,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v3.5</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v3.6</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -718,7 +827,7 @@ export default function LabInventory() {
 }
 
 // ---- EDIT PART FORM ----
-function EditPartForm({ part, onSave, onCancel, usedQty }) {
+function EditPartForm({ part, onSave, onCancel, usedQty, allCategories, allTags }) {
   const [draft, setDraft] = useState({ name: part.name, category: part.category || "", location: part.location || "", location2: part.location2 || "", qty: part.qty ?? 0, tags: part.tags || [], notes: part.notes || "" });
   const save = () => {
     if (!draft.name.trim()) return;
@@ -730,33 +839,14 @@ function EditPartForm({ part, onSave, onCancel, usedQty }) {
     <div className="mt-3 pt-3 border-t" style={{ borderColor: "#233029" }}>
       <div className="grid grid-cols-2 gap-2">
         <Field label="Name"><input autoFocus className={`${inputCls} bench-input`} value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} /></Field>
-        <Field label="Category"><input className={`${inputCls} bench-input`} value={draft.category} onChange={(e) => setDraft((d) => ({ ...d, category: e.target.value }))} placeholder="e.g. Microcontroller" /></Field>
+                <Field label="Category"><SuggestInput value={draft.category} onChange={(v) => setDraft((d) => ({ ...d, category: v }))} options={allCategories} placeholder="e.g. Microcontroller" /></Field>
         <Field label="Primary Location"><input className={`${inputCls} bench-input`} value={draft.location} onChange={(e) => setDraft((d) => ({ ...d, location: e.target.value }))} placeholder="e.g. Building A" /></Field>
         <Field label="Sub Location"><input className={`${inputCls} bench-input`} value={draft.location2} onChange={(e) => setDraft((d) => ({ ...d, location2: e.target.value }))} placeholder="e.g. Shelf 3" /></Field>
         {!part.serialized && <Field label="Quantity"><input type="number" min={usedQty} className={`${inputCls} bench-input`} value={draft.qty} onChange={(e) => setDraft((d) => ({ ...d, qty: e.target.value }))} /></Field>}
       </div>
-      <div className="mt-2">
+            <div className="mt-2">
         <span className="text-[10px] uppercase tracking-wider" style={{ color: "#8FA39A" }}>Tags</span>
-        <div className="flex flex-wrap gap-1.5 mt-1.5">
-          {(draft.tags || []).map((tag) => (
-            <span key={tag} className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded" style={{ background: "#1B2622", border: "1px solid #2A3A33", color: "#5FB88A" }}>
-              {tag}
-              <button onClick={() => setDraft((d) => ({ ...d, tags: d.tags.filter((t) => t !== tag) }))} style={{ color: "#6B8077" }}><X size={10} /></button>
-            </span>
-          ))}
-          <input
-            placeholder="Add tag…"
-            className="text-[11px] bg-transparent outline-none border-b py-0.5"
-            style={{ color: "#EAF0EC", borderColor: "#2A3A33", width: "100px" }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && e.target.value.trim()) {
-                const tag = e.target.value.trim();
-                if (!draft.tags.includes(tag)) setDraft((d) => ({ ...d, tags: [...d.tags, tag] }));
-                e.target.value = "";
-              }
-            }}
-          />
-        </div>
+        <TagInput tags={draft.tags || []} onChange={(tags) => setDraft((d) => ({ ...d, tags }))} allTags={allTags} />
       </div>
        <div className="mt-2">
         <Field label="Notes">
@@ -926,33 +1016,14 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
         <div className="bench-card rounded p-4 mb-4">
           <div className="grid grid-cols-2 gap-3">
             <Field label="Name"><input autoFocus className={`${inputCls} bench-input`} placeholder="e.g. WOW2 Indicator" value={newPart.name} onChange={(e) => setNewPart((p) => ({ ...p, name: e.target.value }))} /></Field>
-            <Field label="Category (optional)"><input className={`${inputCls} bench-input`} placeholder="e.g. WoW Tech" value={newPart.category} onChange={(e) => setNewPart((p) => ({ ...p, category: e.target.value }))} /></Field>
+                        <Field label="Category (optional)"><SuggestInput value={newPart.category} onChange={(v) => setNewPart((p) => ({ ...p, category: v }))} options={allCategories} placeholder="e.g. WoW Tech" /></Field>
             <Field label="Primary Location"><input className={`${inputCls} bench-input`} placeholder="e.g. CCWF" value={newPart.location} onChange={(e) => setNewPart((p) => ({ ...p, location: e.target.value }))} /></Field>
             <Field label="Sub Location"><input className={`${inputCls} bench-input`} placeholder="e.g. Lab" value={newPart.location2} onChange={(e) => setNewPart((p) => ({ ...p, location2: e.target.value }))} /></Field>
             {!newPart.serialized && <Field label="Quantity"><input type="number" min="0" className={`${inputCls} bench-input`} value={newPart.qty} onChange={(e) => setNewPart((p) => ({ ...p, qty: e.target.value }))} /></Field>}
           </div>
-          <div className="mt-3">
+                    <div className="mt-3">
             <span className="text-[10px] uppercase tracking-wider" style={{ color: "#8FA39A" }}>Tags</span>
-            <div className="flex flex-wrap gap-1.5 mt-1.5">
-              {(newPart.tags || []).map((tag) => (
-                <span key={tag} className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded" style={{ background: "#1B2622", border: "1px solid #2A3A33", color: "#5FB88A" }}>
-                  {tag}
-                  <button onClick={() => setNewPart((p) => ({ ...p, tags: p.tags.filter((t) => t !== tag) }))} style={{ color: "#6B8077" }}><X size={10} /></button>
-                </span>
-              ))}
-              <input
-                placeholder="Add tag…"
-                className="text-[11px] bg-transparent outline-none border-b py-0.5"
-                style={{ color: "#EAF0EC", borderColor: "#2A3A33", width: "100px" }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && e.target.value.trim()) {
-                    const tag = e.target.value.trim();
-                    if (!newPart.tags.includes(tag)) setNewPart((p) => ({ ...p, tags: [...p.tags, tag] }));
-                    e.target.value = "";
-                  }
-                }}
-              />
-            </div>
+            <TagInput tags={newPart.tags || []} onChange={(tags) => setNewPart((p) => ({ ...p, tags }))} allTags={allTags} />
           </div>
           <label className="flex items-center gap-2 mt-3 text-xs cursor-pointer select-none" style={{ color: "#8FA39A" }}>
             <input type="checkbox" checked={newPart.has_variants} onChange={(e) => setNewPart((p) => ({ ...p, has_variants: e.target.checked, serialized: false }))} style={{ accentColor: "#D98A4B" }} />
@@ -1172,8 +1243,8 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                     )}
 
                     {/* Edit form */}
-                    {isEditing && (
-                      <EditPartForm part={part} usedQty={used} onSave={(updates) => handleSaveEdit(part.id, updates)} onCancel={() => setEditingPartId(null)} />
+                                        {isEditing && (
+                      <EditPartForm part={part} usedQty={used} onSave={(updates) => handleSaveEdit(part.id, updates)} onCancel={() => setEditingPartId(null)} allCategories={allCategories} allTags={allTags} />
                     )}
 
                     {/* Serials */}
