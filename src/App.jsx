@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { Plus, Trash2, Wrench, Boxes, MapPin, X, AlertCircle, Hammer, Tag, ChevronDown, ChevronUp, RefreshCw, Pencil, Check, LogOut, Shield, UserPlus, Trash, Package } from "lucide-react";
+import { Plus, Trash2, Wrench, Boxes, MapPin, X, AlertCircle, Hammer, Tag, ChevronDown, ChevronUp, RefreshCw, Pencil, Check, LogOut, Shield, UserPlus, Trash, Package, Search } from "lucide-react";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -643,7 +643,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v3.4</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v3.5</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -830,24 +830,45 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
   const [serialDraft, setSerialDraft] = useState({});
   const [editingPartId, setEditingPartId] = useState(null);
   const [editingSerialId, setEditingSerialId] = useState(null);
-  const [filterCategory, setFilterCategory] = useState("");
+    const [filterCategory, setFilterCategory] = useState("");
   const [filterTags, setFilterTags] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const handleSaveEdit = async (id, updates) => { await updatePart(id, updates); setEditingPartId(null); };
 
   const allCategories = [...new Set(parts.map((p) => p.category).filter(Boolean))].sort();
   const allTags = [...new Set(parts.flatMap((p) => p.tags || []))].sort();
 
-  const filteredParts = parts.filter((p) => {
+    const filteredParts = parts.filter((p) => {
     if (filterCategory && p.category !== filterCategory) return false;
     if (filterTags.length > 0 && !filterTags.some((t) => (p.tags || []).includes(t))) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      const matchesName = p.name.toLowerCase().includes(q);
+      const matchesCategory = (p.category || "").toLowerCase().includes(q);
+      const matchesSerial = (p.serials || []).some((s) => (s.serial || "").toLowerCase().includes(q));
+      const matchesVariant = (p.variants || []).some((v) => (v.name || "").toLowerCase().includes(q));
+      if (!matchesName && !matchesCategory && !matchesSerial && !matchesVariant) return false;
+    }
     return true;
   });
 
   return (
     <div>
+            <div className="relative mb-3">
+        <Search size={14} color="#5C6E66" className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <input
+          type="text"
+          placeholder="Search parts by name, serial, category…"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className={`${inputCls} bench-input w-full`}
+          style={{ paddingLeft: "28px" }}
+        />
+      </div>
+
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm" style={{ color: "#8FA39A" }}>{filteredParts.length} part{filteredParts.length === 1 ? "" : "s"}{(filterCategory || filterTags.length > 0) ? ` (filtered)` : ""}</h2>
+        <h2 className="text-sm" style={{ color: "#8FA39A" }}>{filteredParts.length} part{filteredParts.length === 1 ? "" : "s"}{(filterCategory || filterTags.length > 0 || searchQuery.trim()) ? ` (filtered)` : ""}</h2>
         {isAdmin && <button onClick={() => setShowAddPart((v) => !v)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded" style={{ background: "#1B2622", border: "1px solid #2A3A33", color: "#5FB88A" }}>
           <Plus size={13} /> Add part
         </button>}
