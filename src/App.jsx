@@ -752,7 +752,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v3.6</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v3.7</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -945,7 +945,7 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
 
   return (
     <div>
-            <div className="relative mb-3">
+                  <div className="relative mb-3">
         <Search size={14} color="#5C6E66" className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
         <input
           type="text"
@@ -953,8 +953,18 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className={`${inputCls} bench-input w-full`}
-          style={{ paddingLeft: "28px" }}
+          style={{ paddingLeft: "28px", paddingRight: searchQuery ? "28px" : undefined }}
         />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery("")}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2"
+            style={{ color: "#6B8077" }}
+            title="Clear search"
+          >
+            <X size={14} />
+          </button>
+        )}
       </div>
 
       <div className="flex items-center justify-between mb-3">
