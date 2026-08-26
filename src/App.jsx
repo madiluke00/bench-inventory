@@ -280,7 +280,7 @@ export default function LabInventory() {
   const [tab, setTab] = useState("parts");
 
   const [showAddPart, setShowAddPart] = useState(false);
-  const [newPart, setNewPart] = useState({ name: "", qty: "1", location: "", location2: "", category: "", serialized: false, serialsText: "", has_variants: false, variantsText: "", tags: [] });
+    const [newPart, setNewPart] = useState({ name: "", qty: "1", location: "", location2: "", category: "", serialized: false, serialsText: "", has_variants: false, variantsText: "", variantsSerialized: false, tags: [] });
 
   const [showAddBuild, setShowAddBuild] = useState(false);
   const [newBuild, setNewBuild] = useState({ name: "", location: "", location2: "" });
@@ -342,10 +342,11 @@ export default function LabInventory() {
       const variants = newPart.variantsText
         .split(/[\n,]/).map((s) => s.trim()).filter(Boolean)
         .map((v) => ({ id: uid(), name: v, units: [] }));
-      part = {
+            part = {
         id: uid(), name: newPart.name.trim(),
         location: newPart.location.trim() || "Lab", location2: newPart.location2.trim(),
         category: newPart.category.trim(), has_variants: true, variants,
+        variant_units_serialized: newPart.variantsSerialized,
         serialized: false, qty: 0, allocations: [], serials: [], tags: newPart.tags,
       };
     } else if (newPart.serialized) {
@@ -368,7 +369,7 @@ export default function LabInventory() {
     const { error } = await supabase.from("parts").insert(part);
     if (error) { alert("Failed to save part: " + error.message); return; }
     setParts((p) => [...p, part].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
-    setNewPart({ name: "", qty: "1", location: "", location2: "", category: "", serialized: false, serialsText: "", has_variants: false, variantsText: "", tags: [] });
+        setNewPart({ name: "", qty: "1", location: "", location2: "", category: "", serialized: false, serialsText: "", has_variants: false, variantsText: "", variantsSerialized: false, tags: [] });
     setShowAddPart(false);
   };
 
@@ -752,7 +753,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v3.7</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v3.8</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -1044,9 +1045,13 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
               <Field label="Variant names (one per line, or comma-separated)">
                 <textarea className={`${inputCls} bench-input`} rows={3} placeholder={"1GB RAM\n4GB RAM\n8GB RAM"} value={newPart.variantsText} onChange={(e) => setNewPart((p) => ({ ...p, variantsText: e.target.value }))} />
               </Field>
-              <p className="text-[10px] mt-1" style={{ color: "#6B8077" }}>
+                            <p className="text-[10px] mt-1" style={{ color: "#6B8077" }}>
                 {newPart.variantsText.split(/[\n,]/).map((s) => s.trim()).filter(Boolean).length} variants — you can set quantities and add more after saving.
               </p>
+              <label className="flex items-center gap-2 mt-2 text-xs cursor-pointer select-none" style={{ color: "#8FA39A" }}>
+                <input type="checkbox" checked={newPart.variantsSerialized} onChange={(e) => setNewPart((p) => ({ ...p, variantsSerialized: e.target.checked }))} style={{ accentColor: "#D98A4B" }} />
+                Each individual unit has its own serial number
+              </label>
             </div>
           )}
           {!newPart.has_variants && (
@@ -1150,7 +1155,7 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                                                     <div className="flex items-center justify-between gap-2 text-[11px]">
                                                       <span className="flex items-center gap-1.5">
                                                         <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: bg.buildId ? "#D98A4B" : "#5FB88A" }} />
-                                                        <span style={{ color: "#8FA39A" }}>{v.name}</span>
+                                                      <span style={{ color: "#8FA39A" }}>{u.serial ? u.serial : v.name}</span>
                                                       </span>
                                                       <div className="flex items-center gap-1 shrink-0">
                                                         <button onClick={() => setEditingSerialId(isEditingUnit ? null : u.id)} className="w-5 h-5 rounded flex items-center justify-center" style={{ color: isEditingUnit ? "#5FB88A" : "#6B8077", border: "1px solid #2A3A33" }} title="Edit location">
@@ -1185,10 +1190,28 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                                   );
                                 });
                               })()}
-                              <div className="flex items-center gap-1 mt-1">
-                                <button onClick={() => updatePart(part.id, { variants: part.variants.map((x) => x.id === v.id ? { ...x, units: [...(x.units || []), { id: uid(), location: part.location || "", location2: part.location2 || "", allocatedBuildId: null }] } : x) })} className="w-5 h-5 rounded text-xs flex items-center justify-center" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>+</button>
+                                                            <div className="flex items-center gap-1 mt-1">
+                                {!part.variant_units_serialized && (
+                                  <button onClick={() => updatePart(part.id, { variants: part.variants.map((x) => x.id === v.id ? { ...x, units: [...(x.units || []), { id: uid(), location: part.location || "", location2: part.location2 || "", allocatedBuildId: null }] } : x) })} className="w-5 h-5 rounded text-xs flex items-center justify-center" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>+</button>
+                                )}
                                 <button onClick={() => { const freeUnit = [...(v.units || [])].reverse().find((u) => !u.allocatedBuildId); if (freeUnit) updatePart(part.id, { variants: part.variants.map((x) => x.id === v.id ? { ...x, units: x.units.filter((u) => u.id !== freeUnit.id) } : x) }); }} className="w-5 h-5 rounded text-xs flex items-center justify-center" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>−</button>
               </div>
+              {part.variant_units_serialized && (
+                <div className="flex items-center gap-1.5 mt-1">
+                  <input
+                    placeholder="New serial…"
+                    className="text-[11px] bg-transparent outline-none border-b py-0.5"
+                    style={{ color: "#EAF0EC", borderColor: "#2A3A33", width: "120px" }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && e.target.value.trim()) {
+                        updatePart(part.id, { variants: part.variants.map((x) => x.id === v.id ? { ...x, units: [...(x.units || []), { id: uid(), serial: e.target.value.trim(), location: part.location || "", location2: part.location2 || "", allocatedBuildId: null }] } : x) });
+                        e.target.value = "";
+                      }
+                    }}
+                  />
+                  <Plus size={11} color="#5FB88A" />
+                </div>
+              )}
                             </div>
                           );
                         })}
