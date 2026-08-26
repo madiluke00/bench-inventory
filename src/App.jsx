@@ -753,7 +753,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v3.8.2</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v3.8.3</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -1520,14 +1520,18 @@ function SubBuildsTab({ subbuilds, parts, partsById, builds, showAddSubBuild, se
                   <LocationDisplay location={subbuild.location} location2={subbuild.location2} />
                   <div className="mt-2 flex flex-col gap-0.5">
                     {(subbuild.lines || []).sort((a, b) => (partsById[a.partId]?.name || "").localeCompare(partsById[b.partId]?.name || "", undefined, { numeric: true })).map((line) => {
-                      const part = partsById[line.partId];
+                                            const part = partsById[line.partId];
                       const variantName = line.variantId && part ? part.variants?.find((v) => v.id === line.variantId)?.name : null;
                       const serialNames = line.serialIds && part ? line.serialIds.map((sid) => part.serials?.find((s) => s.id === sid)?.serial).filter(Boolean) : null;
+                      const variantUnitSerials = line.unitIds && part && line.variantId
+                        ? line.unitIds.map((uid) => part.variants?.find((v) => v.id === line.variantId)?.units?.find((u) => u.id === uid)?.serial).filter(Boolean)
+                        : null;
                       return (
                         <span key={`${line.partId}-${line.variantId || ""}`} className="text-[11px]" style={{ color: "#6B8077" }}>
                           ↳ {line.qty}× {part ? part.name : "(deleted)"}
                           {variantName && <span style={{ color: "#8FA39A" }}> — {variantName}</span>}
                           {serialNames && serialNames.length > 0 && <span style={{ color: "#8FA39A" }}> (SN: {serialNames.join(", ")})</span>}
+                          {variantUnitSerials && variantUnitSerials.length > 0 && <span style={{ color: "#8FA39A" }}> (SN: {variantUnitSerials.join(", ")})</span>}
                         </span>
                       );
                     })}
@@ -1629,12 +1633,18 @@ function EditBuildForm({ build, onSave, onCancel, parts, partsById, subbuildsByI
                 </div>
               );
             }
-            const part = partsById[line.partId];
+                        const part = partsById[line.partId];
+            const variantName = line.variantId && part ? part.variants?.find((v) => v.id === line.variantId)?.name : null;
+            const variantUnitSerials = line.unitIds && part && line.variantId
+              ? line.unitIds.map((uid) => part.variants?.find((v) => v.id === line.variantId)?.units?.find((u) => u.id === uid)?.serial).filter(Boolean)
+              : null;
             return (
               <div key={line.partId} className="flex items-center justify-between gap-2 text-[11px] px-2 py-1.5 rounded" style={{ background: "#1B2622" }}>
                 <span style={{ color: "#EAF0EC" }}>
                   {line.qty}× {part ? part.name : "(deleted)"}
+                  {variantName && <span style={{ color: "#8FA39A" }}> — {variantName}</span>}
                   {line.serialIds?.length > 0 && <span style={{ color: "#8FA39A" }}> (SN: {line.serialIds.map((sid) => part?.serials?.find((s) => s.id === sid)?.serial).filter(Boolean).join(", ")})</span>}
+                  {variantUnitSerials && variantUnitSerials.length > 0 && <span style={{ color: "#8FA39A" }}> (SN: {variantUnitSerials.join(", ")})</span>}
                 </span>
                 <button onClick={() => removePartFromBuild(build.id, line.partId, line.serialIds || [])} className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px]" style={{ border: "1px solid #2A3A33", color: "#E0664C" }}>
                   <X size={10} /> Remove
@@ -1878,14 +1888,18 @@ function BuildsTab({ builds, parts, partsById, subbuilds, subbuildsById, subbuil
                           </span>
                         );
                       }
-                      const part = partsById[line.partId];
+                                            const part = partsById[line.partId];
                       const serialNames = line.serialIds && part ? line.serialIds.map((sid) => part.serials?.find((s) => s.id === sid)?.serial).filter(Boolean) : null;
                       const variantName = line.variantId && part ? part.variants?.find((v) => v.id === line.variantId)?.name : null;
+                      const variantUnitSerials = line.unitIds && part && line.variantId
+                        ? line.unitIds.map((uid) => part.variants?.find((v) => v.id === line.variantId)?.units?.find((u) => u.id === uid)?.serial).filter(Boolean)
+                        : null;
                       return (
                         <span key={`${line.partId}-${line.variantId || ""}`} className="text-[11px]" style={{ color: "#6B8077" }}>
                           ↳ {line.qty}× {part ? part.name : "(deleted part)"}
                           {variantName && <span style={{ color: "#8FA39A" }}> — {variantName}</span>}
                           {serialNames && serialNames.length > 0 && <span style={{ color: "#8FA39A" }}> (SN: {serialNames.join(", ")})</span>}
+                          {variantUnitSerials && variantUnitSerials.length > 0 && <span style={{ color: "#8FA39A" }}> (SN: {variantUnitSerials.join(", ")})</span>}
                         </span>
                       );
                     })}
