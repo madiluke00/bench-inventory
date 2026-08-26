@@ -1465,7 +1465,7 @@ function SubBuildsTab({ subbuilds, parts, partsById, builds, showAddSubBuild, se
                                 <input type="checkbox" checked={line.variantId === v.id && (line.unitIds || []).includes(u.id)}
                                   onChange={() => { updateSubBuildLine(line.id, "variantId", v.id); const current = line.variantId === v.id ? (line.unitIds || []) : []; const newUnitIds = current.includes(u.id) ? current.filter((x) => x !== u.id) : [...current, u.id]; updateSubBuildLine(line.id, "unitIds", newUnitIds); }}
                                   style={{ accentColor: "#D98A4B" }} />
-                                {u.location || "No location"}{u.location2 ? ` · ${u.location2}` : ""}
+                                {u.serial ? u.serial : (u.location || "No location")}{u.location2 ? ` · ${u.location2}` : ""}
                               </label>
                             ))}
                           </div>
@@ -1674,7 +1674,7 @@ function EditBuildForm({ build, onSave, onCancel, parts, partsById, subbuildsByI
                             }))}
                             style={{ accentColor: "#D98A4B" }}
                           />
-                          {u.location || "No location"}{u.location2 ? ` · ${u.location2}` : ""}
+                          {u.serial ? u.serial : (u.location || "No location")}{u.location2 ? ` · ${u.location2}` : ""}
                         </label>
                       ))}
                     </div>
@@ -1793,7 +1793,7 @@ function BuildsTab({ builds, parts, partsById, subbuilds, subbuildsById, subbuil
                                   }}
                                   style={{ accentColor: "#D98A4B" }}
                                 />
-                                {u.location || "No location"}{u.location2 ? ` · ${u.location2}` : ""}
+                                {u.serial ? u.serial : (u.location || "No location")}{u.location2 ? ` · ${u.location2}` : ""}
                               </label>
                             ))}
                           </div>
