@@ -811,7 +811,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v3.9</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v3.9.2</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -1597,8 +1597,9 @@ function SubBuildsTab({ subbuilds, parts, partsById, builds, showAddSubBuild, se
                   </div>
                                     {isEditing && (
                     <div className="mt-3 pt-3 border-t" style={{ borderColor: "#233029" }}>
-                      <EditSubBuildForm
+                                            <EditSubBuildForm
                         subbuild={subbuild}
+                        parentBuild={parentBuild}
                         parts={parts}
                         partsById={partsById}
                         removePartFromSubBuild={removePartFromSubBuild}
@@ -1609,12 +1610,14 @@ function SubBuildsTab({ subbuilds, parts, partsById, builds, showAddSubBuild, se
                     </div>
                   )}
                 </div>
-                {isAdmin && !subbuild.allocated_build_id && (
+                                {isAdmin && (
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button onClick={() => setEditingId(isEditing ? null : subbuild.id)} className="w-6 h-6 rounded flex items-center justify-center" style={{ color: isEditing ? "#5FB88A" : "#8FA39A", border: "1px solid #2A3A33" }}>
                       <Pencil size={12} />
                     </button>
-                    <button onClick={() => disassembleSubBuild(subbuild.id)} className="px-2.5 py-1 text-[11px] rounded" style={{ border: "1px solid #2A3A33", color: "#E0664C" }}>Disassemble</button>
+                    {!subbuild.allocated_build_id && (
+                      <button onClick={() => disassembleSubBuild(subbuild.id)} className="px-2.5 py-1 text-[11px] rounded" style={{ border: "1px solid #2A3A33", color: "#E0664C" }}>Disassemble</button>
+                    )}
                   </div>
                 )}
               </div>
@@ -1626,11 +1629,19 @@ function SubBuildsTab({ subbuilds, parts, partsById, builds, showAddSubBuild, se
   );
 }
 
-function EditSubBuildForm({ subbuild, onSave, onCancel, parts, partsById, removePartFromSubBuild, addPartToSubBuild }) {
+function EditSubBuildForm({ subbuild, parentBuild, onSave, onCancel, parts, partsById, removePartFromSubBuild, addPartToSubBuild }) {
   const [draft, setDraft] = useState({ name: subbuild.name, location: subbuild.location || "", location2: subbuild.location2 || "" });
   const [addLine, setAddLine] = useState({ partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] });
   const [showAdd, setShowAdd] = useState(false);
-  const save = () => { if (!draft.name.trim()) return; onSave({ name: draft.name.trim(), location: draft.location.trim() || "Lab", location2: draft.location2.trim() }); };
+  const save = () => {
+    if (!draft.name.trim()) return;
+    const updates = { name: draft.name.trim() };
+    if (!parentBuild) {
+      updates.location = draft.location.trim() || "Lab";
+      updates.location2 = draft.location2.trim();
+    }
+    onSave(updates);
+  };
   const selectedPart = partsById[addLine.partId];
   const handleAddPart = async () => {
     if (!addLine.partId) return;
@@ -1646,11 +1657,20 @@ function EditSubBuildForm({ subbuild, onSave, onCancel, parts, partsById, remove
   };
   return (
     <div>
-      <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2">
         <Field label="Name"><input autoFocus className={`${inputCls} bench-input`} value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} /></Field>
         <div />
-        <Field label="Primary Location"><input className={`${inputCls} bench-input`} value={draft.location} onChange={(e) => setDraft((d) => ({ ...d, location: e.target.value }))} /></Field>
-        <Field label="Sub Location"><input className={`${inputCls} bench-input`} value={draft.location2} onChange={(e) => setDraft((d) => ({ ...d, location2: e.target.value }))} /></Field>
+        {parentBuild ? (
+          <div className="col-span-2 flex items-center gap-1.5 text-[11px]" style={{ color: "#6B8077" }}>
+            <MapPin size={11} color="#6B8077" />
+            Location follows build "{parentBuild.name}" ({parentBuild.location}{parentBuild.location2 ? ` · ${parentBuild.location2}` : ""})
+          </div>
+        ) : (
+          <>
+            <Field label="Primary Location"><input className={`${inputCls} bench-input`} value={draft.location} onChange={(e) => setDraft((d) => ({ ...d, location: e.target.value }))} /></Field>
+            <Field label="Sub Location"><input className={`${inputCls} bench-input`} value={draft.location2} onChange={(e) => setDraft((d) => ({ ...d, location2: e.target.value }))} /></Field>
+          </>
+        )}
       </div>
       <div className="flex gap-2 mt-3">
         <button onClick={save} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded" style={{ background: "#5FB88A", color: "#0F1714", fontWeight: 600 }}><Check size={12} /> Save details</button>
