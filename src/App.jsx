@@ -753,7 +753,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v3.8</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v3.8.2</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -1465,7 +1465,7 @@ function SubBuildsTab({ subbuilds, parts, partsById, builds, showAddSubBuild, se
                                 <input type="checkbox" checked={line.variantId === v.id && (line.unitIds || []).includes(u.id)}
                                   onChange={() => { updateSubBuildLine(line.id, "variantId", v.id); const current = line.variantId === v.id ? (line.unitIds || []) : []; const newUnitIds = current.includes(u.id) ? current.filter((x) => x !== u.id) : [...current, u.id]; updateSubBuildLine(line.id, "unitIds", newUnitIds); }}
                                   style={{ accentColor: "#D98A4B" }} />
-                                {u.serial ? u.serial : (u.location || "No location")}{u.location2 ? ` · ${u.location2}` : ""}
+                                {u.serial ? u.serial : `${u.location || "No location"}${u.location2 ? ` · ${u.location2}` : ""}`}
                               </label>
                             ))}
                           </div>
@@ -1674,7 +1674,7 @@ function EditBuildForm({ build, onSave, onCancel, parts, partsById, subbuildsByI
                             }))}
                             style={{ accentColor: "#D98A4B" }}
                           />
-                          {u.serial ? u.serial : (u.location || "No location")}{u.location2 ? ` · ${u.location2}` : ""}
+                          {u.serial ? u.serial : `${u.location || "No location"}${u.location2 ? ` · ${u.location2}` : ""}`}
                         </label>
                       ))}
                     </div>
@@ -1793,7 +1793,7 @@ function BuildsTab({ builds, parts, partsById, subbuilds, subbuildsById, subbuil
                                   }}
                                   style={{ accentColor: "#D98A4B" }}
                                 />
-                                {u.serial ? u.serial : (u.location || "No location")}{u.location2 ? ` · ${u.location2}` : ""}
+                                {u.serial ? u.serial : `${u.location || "No location"}${u.location2 ? ` · ${u.location2}` : ""}`}
                               </label>
                             ))}
                           </div>
