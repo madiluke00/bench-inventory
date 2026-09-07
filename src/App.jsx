@@ -305,12 +305,12 @@ export default function LabInventory() {
         const [newPart, setNewPart] = useState({ name: "", qty: "1", location: "", location2: "", category: "", serialized: false, serialsText: "", has_variants: false, variantsText: "", variantsSerialized: false, tags: [], notes: "" });
 
   const [showAddBuild, setShowAddBuild] = useState(false);
-  const [newBuild, setNewBuild] = useState({ name: "", location: "", location2: "" });
+    const [newBuild, setNewBuild] = useState({ name: "", location: "", location2: "", notes: "" });
   const [buildLines, setBuildLines] = useState([{ id: uid(), partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] }]);
   const [buildError, setBuildError] = useState("");
   const [subbuilds, setSubbuilds] = useState([]);
   const [showAddSubBuild, setShowAddSubBuild] = useState(false);
-  const [newSubBuild, setNewSubBuild] = useState({ name: "", location: "", location2: "" });
+  const [newSubBuild, setNewSubBuild] = useState({ name: "", location: "", location2: "", notes: "" });
   const [subBuildLines, setSubBuildLines] = useState([{ id: uid(), partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] }]);
   const [subBuildError, setSubBuildError] = useState("");
   const [subbuildSelections, setSubbuildSelections] = useState([]);
@@ -491,8 +491,8 @@ export default function LabInventory() {
         setBuildError(`Not enough "${part.name}" available (${availableQty(part)} free).`); return;
       }
     }
-    const buildId = uid();
-    const build = { id: buildId, name: newBuild.name.trim(), location: newBuild.location.trim() || "Lab", location2: newBuild.location2.trim(), lines, created_at: new Date().toISOString() };
+        const buildId = uid();
+    const build = { id: buildId, name: newBuild.name.trim(), location: newBuild.location.trim() || "Lab", location2: newBuild.location2.trim(), lines, notes: newBuild.notes.trim(), created_at: new Date().toISOString() };
     const { error: bErr } = await supabase.from("builds").insert(build);
     if (bErr) { alert("Failed to save build: " + bErr.message); return; }
     const updatedParts = parts.map((part) => {
@@ -525,7 +525,7 @@ export default function LabInventory() {
     }
     setSubbuilds((s) => s.map((x) => subbuildSelections.includes(x.id) ? { ...x, allocated_build_id: buildId, location: build.location, location2: build.location2 } : x));
     setBuilds((b) => [...b, build].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
-    setNewBuild({ name: "", location: "", location2: "" });
+       setNewBuild({ name: "", location: "", location2: "" });
     setBuildLines([{ id: uid(), partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] }]);
     setSubbuildSelections([]);
     setShowAddBuild(false);
@@ -736,8 +736,8 @@ export default function LabInventory() {
         setSubBuildError(`Not enough "${part.name}" available.`); return;
       }
     }
-    const subbuildId = uid();
-    const subbuild = { id: subbuildId, name: newSubBuild.name.trim(), location: newSubBuild.location.trim() || "Lab", location2: newSubBuild.location2.trim(), lines, allocated_build_id: null, created_at: new Date().toISOString() };
+        const subbuildId = uid();
+    const subbuild = { id: subbuildId, name: newSubBuild.name.trim(), location: newSubBuild.location.trim() || "Lab", location2: newSubBuild.location2.trim(), lines, allocated_build_id: null, notes: newSubBuild.notes.trim(), created_at: new Date().toISOString() };
     const { error: sErr } = await supabase.from("subbuilds").insert(subbuild);
     if (sErr) { alert("Failed to save sub-build: " + sErr.message); return; }
     const updatedParts = parts.map((part) => {
@@ -755,7 +755,7 @@ export default function LabInventory() {
     }
     setParts(updatedParts);
     setSubbuilds((s) => [...s, subbuild].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
-    setNewSubBuild({ name: "", location: "", location2: "" });
+     setNewSubBuild({ name: "", location: "", location2: "", notes: "" });
     setSubBuildLines([{ id: uid(), partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] }]);
     setShowAddSubBuild(false);
   };
@@ -836,7 +836,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v4.2</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v4.3</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -1524,7 +1524,12 @@ function SubBuildsTab({ subbuilds, parts, partsById, builds, showAddSubBuild, se
             <Field label="Sub-build name"><input autoFocus className={`${inputCls} bench-input`} placeholder="e.g. RPi Box 101" value={newSubBuild.name} onChange={(e) => setNewSubBuild((b) => ({ ...b, name: e.target.value }))} /></Field>
             <div />
             <Field label="Primary Location"><input list="loc-addsubbuild" className={`${inputCls} bench-input`} placeholder="e.g. CCWF" value={newSubBuild.location} onChange={(e) => setNewSubBuild((b) => ({ ...b, location: e.target.value }))} /><datalist id="loc-addsubbuild">{locationData.allLocations.map((l) => <option key={l} value={l} />)}</datalist></Field>
-            <Field label="Sub Location"><input list="loc2-addsubbuild" className={`${inputCls} bench-input`} placeholder="e.g. Lab" value={newSubBuild.location2} onChange={(e) => setNewSubBuild((b) => ({ ...b, location2: e.target.value }))} /><datalist id="loc2-addsubbuild">{subLocationOptionsFor(newSubBuild.location, locationData).map((l) => <option key={l} value={l} />)}</datalist></Field>
+                        <Field label="Sub Location"><input list="loc2-addsubbuild" className={`${inputCls} bench-input`} placeholder="e.g. Lab" value={newSubBuild.location2} onChange={(e) => setNewSubBuild((b) => ({ ...b, location2: e.target.value }))} /><datalist id="loc2-addsubbuild">{subLocationOptionsFor(newSubBuild.location, locationData).map((l) => <option key={l} value={l} />)}</datalist></Field>
+          </div>
+          <div className="mb-3">
+            <Field label="Notes (optional)">
+              <textarea className={`${inputCls} bench-input`} rows={2} placeholder="Note about this sub-build…" value={newSubBuild.notes} onChange={(e) => setNewSubBuild((b) => ({ ...b, notes: e.target.value }))} />
+            </Field>
           </div>
           <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: "#8FA39A" }}>Parts</div>
           <div className="flex flex-col gap-2">
@@ -1612,7 +1617,10 @@ function SubBuildsTab({ subbuilds, parts, partsById, builds, showAddSubBuild, se
                       : <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "#1B2622", color: "#5FB88A" }}>free</span>
                     }
                   </div>
-                  <LocationDisplay location={subbuild.location} location2={subbuild.location2} />
+                                    <LocationDisplay location={subbuild.location} location2={subbuild.location2} />
+                  {subbuild.notes && !isEditing && (
+                    <p className="text-[11px] mt-1.5 italic" style={{ color: "#8FA39A" }}>Note: {subbuild.notes}</p>
+                  )}
                   <div className="mt-2 flex flex-col gap-0.5">
                     {(subbuild.lines || []).sort((a, b) => (partsById[a.partId]?.name || "").localeCompare(partsById[b.partId]?.name || "", undefined, { numeric: true })).map((line) => {
                                             const part = partsById[line.partId];
@@ -1667,12 +1675,12 @@ locationData={locationData}
 }
 
 function EditSubBuildForm({ subbuild, parentBuild, onSave, onCancel, parts, partsById, removePartFromSubBuild, addPartToSubBuild, locationData }) {
-  const [draft, setDraft] = useState({ name: subbuild.name, location: subbuild.location || "", location2: subbuild.location2 || "" });
+    const [draft, setDraft] = useState({ name: subbuild.name, location: subbuild.location || "", location2: subbuild.location2 || "", notes: subbuild.notes || "" });
   const [addLine, setAddLine] = useState({ partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] });
   const [showAdd, setShowAdd] = useState(false);
-  const save = () => {
+    const save = () => {
     if (!draft.name.trim()) return;
-    const updates = { name: draft.name.trim() };
+    const updates = { name: draft.name.trim(), notes: draft.notes.trim() };
     if (!parentBuild) {
       updates.location = draft.location.trim() || "Lab";
       updates.location2 = draft.location2.trim();
@@ -1707,7 +1715,12 @@ function EditSubBuildForm({ subbuild, parentBuild, onSave, onCancel, parts, part
             <Field label="Primary Location"><input list="loc-editsubbuild" className={`${inputCls} bench-input`} value={draft.location} onChange={(e) => setDraft((d) => ({ ...d, location: e.target.value }))} /><datalist id="loc-editsubbuild">{locationData.allLocations.map((l) => <option key={l} value={l} />)}</datalist></Field>
             <Field label="Sub Location"><input list="loc2-editsubbuild" className={`${inputCls} bench-input`} value={draft.location2} onChange={(e) => setDraft((d) => ({ ...d, location2: e.target.value }))} /><datalist id="loc2-editsubbuild">{subLocationOptionsFor(draft.location, locationData).map((l) => <option key={l} value={l} />)}</datalist></Field>
           </>
-        )}
+                )}
+      </div>
+      <div className="mt-2">
+        <Field label="Notes">
+          <textarea className={`${inputCls} bench-input`} rows={2} placeholder="Note about this sub-build…" value={draft.notes} onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))} />
+        </Field>
       </div>
       <div className="flex gap-2 mt-3">
         <button onClick={save} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded" style={{ background: "#5FB88A", color: "#0F1714", fontWeight: 600 }}><Check size={12} /> Save details</button>
@@ -1797,10 +1810,10 @@ function EditSubBuildForm({ subbuild, parentBuild, onSave, onCancel, parts, part
 
 // ---- EDIT BUILD FORM ----
 function EditBuildForm({ build, onSave, onCancel, parts, partsById, subbuildsById, removePartFromBuild, addPartToBuild, removeSubbuildFromMainBuild, addSubbuildToMainBuild, locationData }) {
-  const [draft, setDraft] = useState({ name: build.name, location: build.location || "", location2: build.location2 || "" });
+  const [draft, setDraft] = useState({ name: build.name, location: build.location || "", location2: build.location2 || "", notes: build.notes || "" });
   const [addLine, setAddLine] = useState({ partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] });
   const [showAdd, setShowAdd] = useState(false);
-  const save = () => { if (!draft.name.trim()) return; onSave({ name: draft.name.trim(), location: draft.location.trim() || "Lab", location2: draft.location2.trim() }); };
+  const save = () => { if (!draft.name.trim()) return; onSave({ name: draft.name.trim(), location: draft.location.trim() || "Lab", location2: draft.location2.trim(), notes: draft.notes.trim() }); };
   const selectedPart = partsById[addLine.partId];
   const handleAddPart = async () => {
     if (!addLine.partId) return;
@@ -1821,6 +1834,11 @@ function EditBuildForm({ build, onSave, onCancel, parts, partsById, subbuildsByI
         <div />
         <Field label="Primary Location"><input list="loc-editbuild" className={`${inputCls} bench-input`} value={draft.location} onChange={(e) => setDraft((d) => ({ ...d, location: e.target.value }))} placeholder="e.g. Feedlot A" /><datalist id="loc-editbuild">{locationData.allLocations.map((l) => <option key={l} value={l} />)}</datalist></Field>
         <Field label="Sub Location"><input className={`${inputCls} bench-input`} value={draft.location2} onChange={(e) => setDraft((d) => ({ ...d, location2: e.target.value }))} placeholder="e.g. Pen 3" /></Field>
+      </div>
+      <div className="mt-2">
+        <Field label="Notes">
+          <textarea className={`${inputCls} bench-input`} rows={2} placeholder="Note about this build…" value={draft.notes} onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))} />
+        </Field>
       </div>
       <div className="flex gap-2 mt-3">
         <button onClick={save} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded" style={{ background: "#D98A4B", color: "#0F1714", fontWeight: 600 }}><Check size={12} /> Save details</button>
@@ -1981,7 +1999,12 @@ const locationData = getLocationOptions(parts, builds, subbuilds);
             <Field label="Build name"><input autoFocus className={`${inputCls} bench-input`} placeholder="e.g. WoW Unit 01" value={newBuild.name} onChange={(e) => setNewBuild((b) => ({ ...b, name: e.target.value }))} /></Field>
             <div />
             <Field label="Primary Location"><input list="loc-addbuild" className={`${inputCls} bench-input`} placeholder="e.g. Feedlot A" value={newBuild.location} onChange={(e) => setNewBuild((b) => ({ ...b, location: e.target.value }))} /><datalist id="loc-addbuild">{locationData.allLocations.map((l) => <option key={l} value={l} />)}</datalist></Field>
-            <Field label="Sub Location"><input list="loc2-addbuild" className={`${inputCls} bench-input`} placeholder="e.g. Pen 3" value={newBuild.location2} onChange={(e) => setNewBuild((b) => ({ ...b, location2: e.target.value }))} /><datalist id="loc2-addbuild">{subLocationOptionsFor(newBuild.location, locationData).map((l) => <option key={l} value={l} />)}</datalist></Field>
+                        <Field label="Sub Location"><input list="loc2-addbuild" className={`${inputCls} bench-input`} placeholder="e.g. Pen 3" value={newBuild.location2} onChange={(e) => setNewBuild((b) => ({ ...b, location2: e.target.value }))} /><datalist id="loc2-addbuild">{subLocationOptionsFor(newBuild.location, locationData).map((l) => <option key={l} value={l} />)}</datalist></Field>
+          </div>
+          <div className="mb-3">
+            <Field label="Notes (optional)">
+              <textarea className={`${inputCls} bench-input`} rows={2} placeholder="Note about this build…" value={newBuild.notes} onChange={(e) => setNewBuild((b) => ({ ...b, notes: e.target.value }))} />
+            </Field>
           </div>
           <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: "#8FA39A" }}>Parts used</div>
           <div className="flex flex-col gap-2">
@@ -2089,7 +2112,10 @@ const locationData = getLocationOptions(parts, builds, subbuilds);
                     <Wrench size={13} color="#D98A4B" />
                     <span className="text-sm font-semibold">{build.name}</span>
                   </div>
-                  <LocationDisplay location={build.location} location2={build.location2} />
+                                    <LocationDisplay location={build.location} location2={build.location2} />
+                  {build.notes && !isEditing && (
+                    <p className="text-[11px] mt-1.5 italic" style={{ color: "#8FA39A" }}>Note: {build.notes}</p>
+                  )}
                   <div className="mt-2 flex flex-col gap-0.5">
                     {[...build.lines].sort((a, b) => {
                       const aIsSub = !!a.subbuildId;
