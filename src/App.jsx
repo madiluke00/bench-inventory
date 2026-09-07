@@ -339,10 +339,10 @@ export default function LabInventory() {
     try {
       const [{ data: partsData, error: pErr }, { data: buildsData, error: bErr }, { data: subbuildsData, error: sErr }] =
         await Promise.all([supabase.from("parts").select("*"), supabase.from("builds").select("*"), supabase.from("subbuilds").select("*")]);
-      if (pErr || bErr || sErr) return;
-      setParts(partsData || []);
-      setBuilds(buildsData || []);
-      setSubbuilds(subbuildsData || []);
+            if (pErr || bErr || sErr) return;
+      setParts((partsData || []).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
+      setBuilds((buildsData || []).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
+      setSubbuilds((subbuildsData || []).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
       setLastSynced(new Date());
     } catch {}
   };
@@ -836,7 +836,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v4.1</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v4.2</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
