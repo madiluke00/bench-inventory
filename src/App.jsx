@@ -21,6 +21,28 @@ function useFonts() {
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
+// Builds location + sub-location suggestion lists from every part/build/sub-build in the system
+function getLocationOptions(parts, builds, subbuilds) {
+  const records = [...(parts || []), ...(builds || []), ...(subbuilds || [])];
+  const allLocations = [...new Set(records.map((r) => r.location).filter(Boolean))].sort();
+  const subsByLocation = {};
+  for (const r of records) {
+    if (!r.location || !r.location2) continue;
+    if (!subsByLocation[r.location]) subsByLocation[r.location] = new Set();
+    subsByLocation[r.location].add(r.location2);
+  }
+  const allSubLocations = [...new Set(records.map((r) => r.location2).filter(Boolean))].sort();
+  return { allLocations, subsByLocation, allSubLocations };
+}
+
+// Given a currently-typed primary location, suggest sub-locations seen with it (falls back to all)
+function subLocationOptionsFor(location, locationData) {
+  if (location && locationData.subsByLocation[location]) {
+    return [...locationData.subsByLocation[location]].sort();
+  }
+  return locationData.allSubLocations;
+}
+
 // ---- LOGIN PAGE ----
 function LoginPage() {
   const [email, setEmail] = useState("");
@@ -811,7 +833,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v3.9.3</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v4.0</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -887,7 +909,7 @@ export default function LabInventory() {
 }
 
 // ---- EDIT PART FORM ----
-function EditPartForm({ part, onSave, onCancel, usedQty, allCategories, allTags }) {
+function EditPartForm({ part, onSave, onCancel, usedQty, allCategories, allTags, locationData }) {
   const [draft, setDraft] = useState({ name: part.name, category: part.category || "", location: part.location || "", location2: part.location2 || "", qty: part.qty ?? 0, tags: part.tags || [], notes: part.notes || "" });
   const save = () => {
     if (!draft.name.trim()) return;
@@ -900,8 +922,8 @@ function EditPartForm({ part, onSave, onCancel, usedQty, allCategories, allTags 
       <div className="grid grid-cols-2 gap-2">
         <Field label="Name"><input autoFocus className={`${inputCls} bench-input`} value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} /></Field>
                 <Field label="Category"><SuggestInput value={draft.category} onChange={(v) => setDraft((d) => ({ ...d, category: v }))} options={allCategories} placeholder="e.g. Microcontroller" /></Field>
-        <Field label="Primary Location"><input className={`${inputCls} bench-input`} value={draft.location} onChange={(e) => setDraft((d) => ({ ...d, location: e.target.value }))} placeholder="e.g. Building A" /></Field>
-        <Field label="Sub Location"><input className={`${inputCls} bench-input`} value={draft.location2} onChange={(e) => setDraft((d) => ({ ...d, location2: e.target.value }))} placeholder="e.g. Shelf 3" /></Field>
+        <Field label="Primary Location"><input list="loc-editpart" className={`${inputCls} bench-input`} value={draft.location} onChange={(e) => setDraft((d) => ({ ...d, location: e.target.value }))} placeholder="e.g. Building A" /><datalist id="loc-editpart">{locationData.allLocations.map((l) => <option key={l} value={l} />)}</datalist></Field>
+        <Field label="Sub Location"><input list="loc2-editpart" className={`${inputCls} bench-input`} value={draft.location2} onChange={(e) => setDraft((d) => ({ ...d, location2: e.target.value }))} placeholder="e.g. Shelf 3" /><datalist id="loc2-editpart">{subLocationOptionsFor(draft.location, locationData).map((l) => <option key={l} value={l} />)}</datalist></Field>
         {!part.serialized && <Field label="Quantity"><input type="number" min={usedQty} className={`${inputCls} bench-input`} value={draft.qty} onChange={(e) => setDraft((d) => ({ ...d, qty: e.target.value }))} /></Field>}
       </div>
             <div className="mt-2">
@@ -927,15 +949,17 @@ function EditPartForm({ part, onSave, onCancel, usedQty, allCategories, allTags 
 }
 
 // ---- EDIT SERIAL ----
-function EditSerialLocation({ serial, onSave, onCancel }) {
+function EditSerialLocation({ serial, onSave, onCancel, locationData }) {
   const [draft, setDraft] = useState({ serial: serial.serial || "", location: serial.location || "", location2: serial.location2 || "", notes: serial.notes || "" });
   return (
     <div className="flex flex-col gap-1.5 mt-1 pl-2">
       <div className="grid grid-cols-2 gap-1.5">
         <input className={`${inputCls} bench-input text-xs py-1`} placeholder="Serial number" value={draft.serial} onChange={(e) => setDraft((d) => ({ ...d, serial: e.target.value }))} />
         <div />
-        <input className={`${inputCls} bench-input text-xs py-1`} placeholder="Primary location" value={draft.location} onChange={(e) => setDraft((d) => ({ ...d, location: e.target.value }))} />
-        <input className={`${inputCls} bench-input text-xs py-1`} placeholder="Sub location" value={draft.location2} onChange={(e) => setDraft((d) => ({ ...d, location2: e.target.value }))} />
+        <input list="loc-editserial" className={`${inputCls} bench-input text-xs py-1`} placeholder="Primary location" value={draft.location} onChange={(e) => setDraft((d) => ({ ...d, location: e.target.value }))} />
+<datalist id="loc-editserial">{locationData.allLocations.map((l) => <option key={l} value={l} />)}</datalist>
+        <input list="loc2-editserial" className={`${inputCls} bench-input text-xs py-1`} placeholder="Sub location" value={draft.location2} onChange={(e) => setDraft((d) => ({ ...d, location2: e.target.value }))} />
+<datalist id="loc2-editserial">{subLocationOptionsFor(draft.location, locationData).map((l) => <option key={l} value={l} />)}</datalist>
       </div>
       <textarea className={`${inputCls} bench-input text-xs py-1`} rows={2} placeholder="Note…" value={draft.notes} onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))} />
       <div className="flex gap-1.5">
@@ -976,6 +1000,7 @@ function VariantUnitAdd({ part, variant, updatePart }) {
 // ---- PARTS TAB ----
 function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, addPart, deletePart, adjustQty, updatePart, updateSerial, addSerial, removeSerial, builds, subbuilds, isAdmin }) {
   const allBuildsAndSubbuilds = [...(builds || []), ...(subbuilds || [])];
+  const locationData = getLocationOptions(parts, builds, subbuilds);
   const [expanded, setExpanded] = useState({});
   const [serialDraft, setSerialDraft] = useState({});
   const [editingPartId, setEditingPartId] = useState(null);
@@ -1087,8 +1112,14 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
           <div className="grid grid-cols-2 gap-3">
             <Field label="Name"><input autoFocus className={`${inputCls} bench-input`} placeholder="e.g. WOW2 Indicator" value={newPart.name} onChange={(e) => setNewPart((p) => ({ ...p, name: e.target.value }))} /></Field>
                         <Field label="Category (optional)"><SuggestInput value={newPart.category} onChange={(v) => setNewPart((p) => ({ ...p, category: v }))} options={allCategories} placeholder="e.g. WoW Tech" /></Field>
-            <Field label="Primary Location"><input className={`${inputCls} bench-input`} placeholder="e.g. CCWF" value={newPart.location} onChange={(e) => setNewPart((p) => ({ ...p, location: e.target.value }))} /></Field>
-            <Field label="Sub Location"><input className={`${inputCls} bench-input`} placeholder="e.g. Lab" value={newPart.location2} onChange={(e) => setNewPart((p) => ({ ...p, location2: e.target.value }))} /></Field>
+                        <Field label="Primary Location">
+              <input list="loc-addpart" className={`${inputCls} bench-input`} placeholder="e.g. CCWF" value={newPart.location} onChange={(e) => setNewPart((p) => ({ ...p, location: e.target.value }))} />
+              <datalist id="loc-addpart">{locationData.allLocations.map((l) => <option key={l} value={l} />)}</datalist>
+            </Field>
+            <Field label="Sub Location">
+              <input list="loc2-addpart" className={`${inputCls} bench-input`} placeholder="e.g. Lab" value={newPart.location2} onChange={(e) => setNewPart((p) => ({ ...p, location2: e.target.value }))} />
+              <datalist id="loc2-addpart">{subLocationOptionsFor(newPart.location, locationData).map((l) => <option key={l} value={l} />)}</datalist>
+            </Field>
             {!newPart.serialized && <Field label="Quantity"><input type="number" min="0" className={`${inputCls} bench-input`} value={newPart.qty} onChange={(e) => setNewPart((p) => ({ ...p, qty: e.target.value }))} /></Field>}
           </div>
                     <div className="mt-3">
@@ -1231,6 +1262,7 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                                                     {isEditingUnit && (
                                                       <EditSerialLocation
                                                         serial={{ serial: "", location: u.location || "", location2: u.location2 || "", notes: u.notes || "" }}
+locationData={locationData}
                                                         onSave={async (updates) => {
                                                           await updatePart(part.id, { variants: part.variants.map((x) => x.id === v.id ? { ...x, units: x.units.map((y) => y.id === u.id ? { ...y, location: updates.location, location2: updates.location2, notes: updates.notes } : y) } : x) });
                                                           setEditingSerialId(null);
@@ -1336,7 +1368,7 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
 
                     {/* Edit form */}
                                         {isEditing && (
-                      <EditPartForm part={part} usedQty={used} onSave={(updates) => handleSaveEdit(part.id, updates)} onCancel={() => setEditingPartId(null)} allCategories={allCategories} allTags={allTags} />
+                      <EditPartForm part={part} usedQty={used} onSave={(updates) => handleSaveEdit(part.id, updates)} onCancel={() => setEditingPartId(null)} allCategories={allCategories} allTags={allTags} locationData={locationData} />
                     )}
 
                     {/* Serials */}
@@ -1403,7 +1435,7 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
                                                       <div className="text-[10px] italic pl-3" style={{ color: "#6B8077" }}>Note: {s.notes}</div>
                                                     )}
                                                     {isEditingSerial && (
-                                                      <EditSerialLocation serial={s} onSave={async (updates) => { await updateSerial(part.id, s.id, updates); setEditingSerialId(null); }} onCancel={() => setEditingSerialId(null)} />
+                                                      <EditSerialLocation serial={s} locationData={locationData} onSave={async (updates) => { await updateSerial(part.id, s.id, updates); setEditingSerialId(null); }} onCancel={() => setEditingSerialId(null)} />
                                                     )}
                                                   </div>
                                                 );
@@ -1474,6 +1506,7 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
 // ---- SUB-BUILDS TAB ----
 function SubBuildsTab({ subbuilds, parts, partsById, builds, showAddSubBuild, setShowAddSubBuild, newSubBuild, setNewSubBuild, subBuildLines, addSubBuildLine, removeSubBuildLine, updateSubBuildLine, toggleSubBuildLineSerial, createSubBuild, subBuildError, disassembleSubBuild, updateSubBuild, removePartFromSubBuild, addPartToSubBuild, isAdmin }) {
   const [editingId, setEditingId] = useState(null);
+  const locationData = getLocationOptions(parts, builds, subbuilds);
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -1487,8 +1520,8 @@ function SubBuildsTab({ subbuilds, parts, partsById, builds, showAddSubBuild, se
           <div className="grid grid-cols-2 gap-3 mb-3">
             <Field label="Sub-build name"><input autoFocus className={`${inputCls} bench-input`} placeholder="e.g. RPi Box 101" value={newSubBuild.name} onChange={(e) => setNewSubBuild((b) => ({ ...b, name: e.target.value }))} /></Field>
             <div />
-            <Field label="Primary Location"><input className={`${inputCls} bench-input`} placeholder="e.g. CCWF" value={newSubBuild.location} onChange={(e) => setNewSubBuild((b) => ({ ...b, location: e.target.value }))} /></Field>
-            <Field label="Sub Location"><input className={`${inputCls} bench-input`} placeholder="e.g. Lab" value={newSubBuild.location2} onChange={(e) => setNewSubBuild((b) => ({ ...b, location2: e.target.value }))} /></Field>
+            <Field label="Primary Location"><input list="loc-addsubbuild" className={`${inputCls} bench-input`} placeholder="e.g. CCWF" value={newSubBuild.location} onChange={(e) => setNewSubBuild((b) => ({ ...b, location: e.target.value }))} /><datalist id="loc-addsubbuild">{locationData.allLocations.map((l) => <option key={l} value={l} />)}</datalist></Field>
+            <Field label="Sub Location"><input list="loc2-addsubbuild" className={`${inputCls} bench-input`} placeholder="e.g. Lab" value={newSubBuild.location2} onChange={(e) => setNewSubBuild((b) => ({ ...b, location2: e.target.value }))} /><datalist id="loc2-addsubbuild">{subLocationOptionsFor(newSubBuild.location, locationData).map((l) => <option key={l} value={l} />)}</datalist></Field>
           </div>
           <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: "#8FA39A" }}>Parts</div>
           <div className="flex flex-col gap-2">
@@ -1600,6 +1633,7 @@ function SubBuildsTab({ subbuilds, parts, partsById, builds, showAddSubBuild, se
                                             <EditSubBuildForm
                         subbuild={subbuild}
                         parentBuild={parentBuild}
+locationData={locationData}
                         parts={parts}
                         partsById={partsById}
                         removePartFromSubBuild={removePartFromSubBuild}
@@ -1629,7 +1663,7 @@ function SubBuildsTab({ subbuilds, parts, partsById, builds, showAddSubBuild, se
   );
 }
 
-function EditSubBuildForm({ subbuild, parentBuild, onSave, onCancel, parts, partsById, removePartFromSubBuild, addPartToSubBuild }) {
+function EditSubBuildForm({ subbuild, parentBuild, onSave, onCancel, parts, partsById, removePartFromSubBuild, addPartToSubBuild, locationData }) {
   const [draft, setDraft] = useState({ name: subbuild.name, location: subbuild.location || "", location2: subbuild.location2 || "" });
   const [addLine, setAddLine] = useState({ partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] });
   const [showAdd, setShowAdd] = useState(false);
@@ -1667,8 +1701,8 @@ function EditSubBuildForm({ subbuild, parentBuild, onSave, onCancel, parts, part
           </div>
         ) : (
           <>
-            <Field label="Primary Location"><input className={`${inputCls} bench-input`} value={draft.location} onChange={(e) => setDraft((d) => ({ ...d, location: e.target.value }))} /></Field>
-            <Field label="Sub Location"><input className={`${inputCls} bench-input`} value={draft.location2} onChange={(e) => setDraft((d) => ({ ...d, location2: e.target.value }))} /></Field>
+            <Field label="Primary Location"><input list="loc-editsubbuild" className={`${inputCls} bench-input`} value={draft.location} onChange={(e) => setDraft((d) => ({ ...d, location: e.target.value }))} /><datalist id="loc-editsubbuild">{locationData.allLocations.map((l) => <option key={l} value={l} />)}</datalist></Field>
+            <Field label="Sub Location"><input list="loc2-editsubbuild" className={`${inputCls} bench-input`} value={draft.location2} onChange={(e) => setDraft((d) => ({ ...d, location2: e.target.value }))} /><datalist id="loc2-editsubbuild">{subLocationOptionsFor(draft.location, locationData).map((l) => <option key={l} value={l} />)}</datalist></Field>
           </>
         )}
       </div>
@@ -1759,7 +1793,7 @@ function EditSubBuildForm({ subbuild, parentBuild, onSave, onCancel, parts, part
 }
 
 // ---- EDIT BUILD FORM ----
-function EditBuildForm({ build, onSave, onCancel, parts, partsById, subbuildsById, removePartFromBuild, addPartToBuild, removeSubbuildFromMainBuild, addSubbuildToMainBuild }) {
+function EditBuildForm({ build, onSave, onCancel, parts, partsById, subbuildsById, removePartFromBuild, addPartToBuild, removeSubbuildFromMainBuild, addSubbuildToMainBuild, locationData }) {
   const [draft, setDraft] = useState({ name: build.name, location: build.location || "", location2: build.location2 || "" });
   const [addLine, setAddLine] = useState({ partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] });
   const [showAdd, setShowAdd] = useState(false);
@@ -1782,7 +1816,7 @@ function EditBuildForm({ build, onSave, onCancel, parts, partsById, subbuildsByI
       <div className="grid grid-cols-2 gap-2">
         <Field label="Build Name"><input autoFocus className={`${inputCls} bench-input`} value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} /></Field>
         <div />
-        <Field label="Primary Location"><input className={`${inputCls} bench-input`} value={draft.location} onChange={(e) => setDraft((d) => ({ ...d, location: e.target.value }))} placeholder="e.g. Feedlot A" /></Field>
+        <Field label="Primary Location"><input list="loc-editbuild" className={`${inputCls} bench-input`} value={draft.location} onChange={(e) => setDraft((d) => ({ ...d, location: e.target.value }))} placeholder="e.g. Feedlot A" /><datalist id="loc-editbuild">{locationData.allLocations.map((l) => <option key={l} value={l} />)}</datalist></Field>
         <Field label="Sub Location"><input className={`${inputCls} bench-input`} value={draft.location2} onChange={(e) => setDraft((d) => ({ ...d, location2: e.target.value }))} placeholder="e.g. Pen 3" /></Field>
       </div>
       <div className="flex gap-2 mt-3">
@@ -1927,6 +1961,8 @@ function EditBuildForm({ build, onSave, onCancel, parts, partsById, subbuildsByI
 function BuildsTab({ builds, parts, partsById, subbuilds, subbuildsById, subbuildSelections, setSubbuildSelections, showAddBuild, setShowAddBuild, newBuild, setNewBuild, buildLines, addBuildLine, removeBuildLine, updateBuildLine, toggleBuildLineSerial, createBuild, buildError, disassembleBuild, updateBuild, removePartFromBuild, addPartToBuild, addSubbuildToMainBuild, removeSubbuildFromMainBuild, isAdmin }) {
   const [editingId, setEditingId] = useState(null);
   const freeSubbuilds = (subbuilds || []).filter((s) => !s.allocated_build_id);
+const locationData = getLocationOptions(parts, builds, subbuilds);
+const locationData = getLocationOptions(parts, builds, subbuilds);
 
   return (
     <div>
@@ -1942,8 +1978,8 @@ function BuildsTab({ builds, parts, partsById, subbuilds, subbuildsById, subbuil
           <div className="grid grid-cols-2 gap-3 mb-3">
             <Field label="Build name"><input autoFocus className={`${inputCls} bench-input`} placeholder="e.g. WoW Unit 01" value={newBuild.name} onChange={(e) => setNewBuild((b) => ({ ...b, name: e.target.value }))} /></Field>
             <div />
-            <Field label="Primary Location"><input className={`${inputCls} bench-input`} placeholder="e.g. Feedlot A" value={newBuild.location} onChange={(e) => setNewBuild((b) => ({ ...b, location: e.target.value }))} /></Field>
-            <Field label="Sub Location"><input className={`${inputCls} bench-input`} placeholder="e.g. Pen 3" value={newBuild.location2} onChange={(e) => setNewBuild((b) => ({ ...b, location2: e.target.value }))} /></Field>
+            <Field label="Primary Location"><input list="loc-addbuild" className={`${inputCls} bench-input`} placeholder="e.g. Feedlot A" value={newBuild.location} onChange={(e) => setNewBuild((b) => ({ ...b, location: e.target.value }))} /><datalist id="loc-addbuild">{locationData.allLocations.map((l) => <option key={l} value={l} />)}</datalist></Field>
+            <Field label="Sub Location"><input list="loc2-addbuild" className={`${inputCls} bench-input`} placeholder="e.g. Pen 3" value={newBuild.location2} onChange={(e) => setNewBuild((b) => ({ ...b, location2: e.target.value }))} /><datalist id="loc2-addbuild">{subLocationOptionsFor(newBuild.location, locationData).map((l) => <option key={l} value={l} />)}</datalist></Field>
           </div>
           <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: "#8FA39A" }}>Parts used</div>
           <div className="flex flex-col gap-2">
@@ -2088,7 +2124,7 @@ function BuildsTab({ builds, parts, partsById, subbuilds, subbuildsById, subbuil
                     })}
                   </div>
                   {isEditing && (
-                    <EditBuildForm build={build} onSave={async (updates) => { await updateBuild(build.id, updates); }} onCancel={() => setEditingId(null)} parts={parts} partsById={partsById} subbuildsById={subbuildsById} removePartFromBuild={removePartFromBuild} addPartToBuild={addPartToBuild} removeSubbuildFromMainBuild={removeSubbuildFromMainBuild} addSubbuildToMainBuild={addSubbuildToMainBuild} />
+                    <EditBuildForm build={build} onSave={async (updates) => { await updateBuild(build.id, updates); }} onCancel={() => setEditingId(null)} parts={parts} partsById={partsById} subbuildsById={subbuildsById} removePartFromBuild={removePartFromBuild} addPartToBuild={addPartToBuild} removeSubbuildFromMainBuild={removeSubbuildFromMainBuild} addSubbuildToMainBuild={addSubbuildToMainBuild} locationData={locationData} />
                   )}
                 </div>
                 {isAdmin && <div className="flex items-center gap-1.5 shrink-0">
