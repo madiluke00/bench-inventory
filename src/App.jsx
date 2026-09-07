@@ -935,11 +935,6 @@ function EditPartForm({ part, onSave, onCancel, usedQty, allCategories, allTags,
           <textarea className={`${inputCls} bench-input`} rows={2} placeholder="Note about this part…" value={draft.notes} onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))} />
         </Field>
       </div>
-       <div className="mt-2">
-        <Field label="Notes">
-          <textarea className={`${inputCls} bench-input`} rows={2} placeholder="Note about this part…" value={draft.notes} onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))} />
-        </Field>
-      </div>
       <div className="flex gap-2 mt-3">
         <button onClick={save} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded" style={{ background: "#5FB88A", color: "#0F1714", fontWeight: 600 }}><Check size={12} /> Save</button>
         <button onClick={onCancel} className="px-3 py-1.5 text-xs rounded" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>Cancel</button>
@@ -1961,7 +1956,6 @@ function EditBuildForm({ build, onSave, onCancel, parts, partsById, subbuildsByI
 function BuildsTab({ builds, parts, partsById, subbuilds, subbuildsById, subbuildSelections, setSubbuildSelections, showAddBuild, setShowAddBuild, newBuild, setNewBuild, buildLines, addBuildLine, removeBuildLine, updateBuildLine, toggleBuildLineSerial, createBuild, buildError, disassembleBuild, updateBuild, removePartFromBuild, addPartToBuild, addSubbuildToMainBuild, removeSubbuildFromMainBuild, isAdmin }) {
   const [editingId, setEditingId] = useState(null);
   const freeSubbuilds = (subbuilds || []).filter((s) => !s.allocated_build_id);
-const locationData = getLocationOptions(parts, builds, subbuilds);
 const locationData = getLocationOptions(parts, builds, subbuilds);
 
   return (
