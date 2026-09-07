@@ -302,7 +302,7 @@ export default function LabInventory() {
   const [tab, setTab] = useState("parts");
 
   const [showAddPart, setShowAddPart] = useState(false);
-    const [newPart, setNewPart] = useState({ name: "", qty: "1", location: "", location2: "", category: "", serialized: false, serialsText: "", has_variants: false, variantsText: "", variantsSerialized: false, tags: [] });
+        const [newPart, setNewPart] = useState({ name: "", qty: "1", location: "", location2: "", category: "", serialized: false, serialsText: "", has_variants: false, variantsText: "", variantsSerialized: false, tags: [], notes: "" });
 
   const [showAddBuild, setShowAddBuild] = useState(false);
   const [newBuild, setNewBuild] = useState({ name: "", location: "", location2: "" });
@@ -368,8 +368,9 @@ export default function LabInventory() {
         id: uid(), name: newPart.name.trim(),
         location: newPart.location.trim() || "Lab", location2: newPart.location2.trim(),
         category: newPart.category.trim(), has_variants: true, variants,
-        variant_units_serialized: newPart.variantsSerialized,
+                variant_units_serialized: newPart.variantsSerialized,
         serialized: false, qty: 0, allocations: [], serials: [], tags: newPart.tags,
+        notes: newPart.notes.trim(),
       };
     } else if (newPart.serialized) {
       part = {
@@ -377,21 +378,23 @@ export default function LabInventory() {
         location: newPart.location.trim() || "Lab", location2: newPart.location2.trim(),
         category: newPart.category.trim(), serialized: true, qty: 0, allocations: [],
         has_variants: false, variants: [], tags: newPart.tags,
-        serials: newPart.serialsText.split(/[\n,]/).map((s) => s.trim()).filter(Boolean)
+                serials: newPart.serialsText.split(/[\n,]/).map((s) => s.trim()).filter(Boolean)
           .map((s) => ({ id: uid(), serial: s, allocatedBuildId: null, location: newPart.location.trim() || "Lab", location2: newPart.location2.trim() })),
+        notes: newPart.notes.trim(),
       };
     } else {
       part = {
         id: uid(), name: newPart.name.trim(), qty: Math.max(0, parseInt(newPart.qty, 10) || 0),
         location: newPart.location.trim() || "Lab", location2: newPart.location2.trim(),
-        category: newPart.category.trim(), serialized: false, allocations: [], serials: [],
+                category: newPart.category.trim(), serialized: false, allocations: [], serials: [],
         has_variants: false, variants: [], tags: newPart.tags,
+        notes: newPart.notes.trim(),
       };
     }
     const { error } = await supabase.from("parts").insert(part);
     if (error) { alert("Failed to save part: " + error.message); return; }
     setParts((p) => [...p, part].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
-        setNewPart({ name: "", qty: "1", location: "", location2: "", category: "", serialized: false, serialsText: "", has_variants: false, variantsText: "", variantsSerialized: false, tags: [] });
+                setNewPart({ name: "", qty: "1", location: "", location2: "", category: "", serialized: false, serialsText: "", has_variants: false, variantsText: "", variantsSerialized: false, tags: [], notes: "" });
     setShowAddPart(false);
   };
 
@@ -833,7 +836,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v4.0</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v4.1</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -1117,9 +1120,14 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
             </Field>
             {!newPart.serialized && <Field label="Quantity"><input type="number" min="0" className={`${inputCls} bench-input`} value={newPart.qty} onChange={(e) => setNewPart((p) => ({ ...p, qty: e.target.value }))} /></Field>}
           </div>
-                    <div className="mt-3">
+                                        <div className="mt-3">
             <span className="text-[10px] uppercase tracking-wider" style={{ color: "#8FA39A" }}>Tags</span>
             <TagInput tags={newPart.tags || []} onChange={(tags) => setNewPart((p) => ({ ...p, tags }))} allTags={allTags} />
+          </div>
+          <div className="mt-3">
+            <Field label="Notes (optional)">
+              <textarea className={`${inputCls} bench-input`} rows={2} placeholder="Note about this part…" value={newPart.notes} onChange={(e) => setNewPart((p) => ({ ...p, notes: e.target.value }))} />
+            </Field>
           </div>
           <label className="flex items-center gap-2 mt-3 text-xs cursor-pointer select-none" style={{ color: "#8FA39A" }}>
             <input type="checkbox" checked={newPart.has_variants} onChange={(e) => setNewPart((p) => ({ ...p, has_variants: e.target.checked, serialized: false }))} style={{ accentColor: "#D98A4B" }} />
