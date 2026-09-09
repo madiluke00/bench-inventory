@@ -836,7 +836,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v4.4</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v4.4.2</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -1030,14 +1030,18 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
   const availabilityRank = (p) => {
     const avail = availableQty(p);
     const total = totalQty(p);
-    if (total === 0 || avail <= 0) return 0; // out of stock — surfaces first
+    if (total === 0 || avail <= 0) return 0; // out of stock
     if (avail < total) return 1; // partially available
     return 2; // fully available
   };
 
   const sortedParts = [...filteredParts].sort((a, b) => {
-    if (sortBy === "availability") {
-      const diff = availabilityRank(a) - availabilityRank(b);
+    if (sortBy === "available-first") {
+      const diff = availabilityRank(b) - availabilityRank(a); // higher rank (available) first
+      return diff !== 0 ? diff : a.name.localeCompare(b.name, undefined, { numeric: true });
+    }
+    if (sortBy === "unavailable-first") {
+      const diff = availabilityRank(a) - availabilityRank(b); // lower rank (unavailable) first
       return diff !== 0 ? diff : a.name.localeCompare(b.name, undefined, { numeric: true });
     }
     return a.name.localeCompare(b.name, undefined, { numeric: true });
@@ -1077,7 +1081,8 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
             style={{ background: "#131D19", border: "1px solid #2A3A33", color: "#8FA39A" }}
           >
             <option value="alpha">Sort: A–Z</option>
-            <option value="availability">Sort: Availability</option>
+            <option value="available-first">Sort: Available first</option>
+            <option value="unavailable-first">Sort: Unavailable first</option>
           </select>
           {isAdmin && <button onClick={() => setShowAddPart((v) => !v)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded" style={{ background: "#1B2622", border: "1px solid #2A3A33", color: "#5FB88A" }}>
             <Plus size={13} /> Add part
