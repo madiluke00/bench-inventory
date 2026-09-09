@@ -836,7 +836,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v4.4.2</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v4.4.3</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -1088,12 +1088,7 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
             <Plus size={13} /> Add part
           </button>}
         </div>
-      </div>      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm" style={{ color: "#8FA39A" }}>{filteredParts.length} part{filteredParts.length === 1 ? "" : "s"}{(filterCategory || filterTags.length > 0 || searchQuery.trim()) ? ` (filtered)` : ""}</h2>
-        {isAdmin && <button onClick={() => setShowAddPart((v) => !v)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded" style={{ background: "#1B2622", border: "1px solid #2A3A33", color: "#5FB88A" }}>
-          <Plus size={13} /> Add part
-        </button>}
-      </div>
+       </div>
 
       {/* Filters */}
       {(allCategories.length > 0 || allTags.length > 0) && (
