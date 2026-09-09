@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { Plus, Trash2, Wrench, Boxes, MapPin, X, AlertCircle, Hammer, Tag, ChevronDown, ChevronUp, RefreshCw, Pencil, Check, LogOut, Shield, UserPlus, Trash, Package, Search } from "lucide-react";
+import { Plus, Trash2, Wrench, Boxes, MapPin, X, AlertCircle, Hammer, Tag, ChevronDown, ChevronUp, RefreshCw, Pencil, Check, LogOut, Shield, UserPlus, Trash, Package, Search, Briefcase } from "lucide-react";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -22,8 +22,8 @@ function useFonts() {
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 // Builds location + sub-location suggestion lists from every part/build/sub-build in the system
-function getLocationOptions(parts, builds, subbuilds) {
-  const records = [...(parts || []), ...(builds || []), ...(subbuilds || [])];
+function getLocationOptions(parts, builds, subbuilds, equipment) {
+  const records = [...(parts || []), ...(builds || []), ...(subbuilds || []), ...(equipment || [])];
   const allLocations = [...new Set(records.map((r) => r.location).filter(Boolean))].sort();
   const subsByLocation = {};
   for (const r of records) {
@@ -314,18 +314,23 @@ export default function LabInventory() {
   const [subBuildLines, setSubBuildLines] = useState([{ id: uid(), partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] }]);
   const [subBuildError, setSubBuildError] = useState("");
   const [subbuildSelections, setSubbuildSelections] = useState([]);
+  const [equipment, setEquipment] = useState([]);
+  const [showAddEquipment, setShowAddEquipment] = useState(false);
+  const [newEquipment, setNewEquipment] = useState({ name: "", qty: "1", location: "", location2: "", category: "", serialized: false, serialsText: "", has_variants: false, variantsText: "", variantsSerialized: false, tags: [] });
 
   const loadData = async () => {
     setLoading(true); setError(null);
     try {
-      const [{ data: partsData, error: pErr }, { data: buildsData, error: bErr }, { data: subbuildsData, error: sErr }] =
-        await Promise.all([supabase.from("parts").select("*"), supabase.from("builds").select("*"), supabase.from("subbuilds").select("*")]);
+      const [{ data: partsData, error: pErr }, { data: buildsData, error: bErr }, { data: subbuildsData, error: sErr }, { data: equipmentData, error: eErr }] =
+        await Promise.all([supabase.from("parts").select("*"), supabase.from("builds").select("*"), supabase.from("subbuilds").select("*"), supabase.from("equipment").select("*")]);
       if (pErr) throw pErr;
       if (bErr) throw bErr;
       if (sErr) throw sErr;
+      if (eErr) throw eErr;
       setParts((partsData || []).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
       setBuilds((buildsData || []).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
       setSubbuilds((subbuildsData || []).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
+      setEquipment((equipmentData || []).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
     } catch {
       setError("Couldn't connect to database. Check your credentials.");
     } finally {
@@ -337,12 +342,13 @@ export default function LabInventory() {
 
   const syncData = async () => {
     try {
-      const [{ data: partsData, error: pErr }, { data: buildsData, error: bErr }, { data: subbuildsData, error: sErr }] =
-        await Promise.all([supabase.from("parts").select("*"), supabase.from("builds").select("*"), supabase.from("subbuilds").select("*")]);
-            if (pErr || bErr || sErr) return;
+      const [{ data: partsData, error: pErr }, { data: buildsData, error: bErr }, { data: subbuildsData, error: sErr }, { data: equipmentData, error: eErr }] =
+        await Promise.all([supabase.from("parts").select("*"), supabase.from("builds").select("*"), supabase.from("subbuilds").select("*"), supabase.from("equipment").select("*")]);
+            if (pErr || bErr || sErr || eErr) return;
       setParts((partsData || []).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
       setBuilds((buildsData || []).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
       setSubbuilds((subbuildsData || []).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
+      setEquipment((equipmentData || []).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
       setLastSynced(new Date());
     } catch {}
   };
@@ -351,11 +357,11 @@ export default function LabInventory() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      const anyFormOpen = showAddPart || showAddBuild;
+       const anyFormOpen = showAddPart || showAddBuild || showAddEquipment;
       if (!anyFormOpen) syncData();
     }, 30000);
     return () => clearInterval(interval);
-  }, [showAddPart, showAddBuild]);
+  }, [showAddPart, showAddBuild, showAddEquipment]);
 
   const addPart = async () => {
     if (!newPart.name.trim()) return;
@@ -446,6 +452,87 @@ export default function LabInventory() {
     const part = parts.find((p) => p.id === partId);
     if (!part) return;
     await updatePart(partId, { serials: part.serials.filter((s) => s.id !== serialId) });
+  };
+
+  const addEquipment = async () => {
+    if (!newEquipment.name.trim()) return;
+    let item;
+    if (newEquipment.has_variants) {
+      const variants = newEquipment.variantsText
+        .split(/[\n,]/).map((s) => s.trim()).filter(Boolean)
+        .map((v) => ({ id: uid(), name: v, units: [] }));
+      item = {
+        id: uid(), name: newEquipment.name.trim(),
+        location: newEquipment.location.trim() || "Lab", location2: newEquipment.location2.trim(),
+        category: newEquipment.category.trim(), has_variants: true, variants,
+        variant_units_serialized: newEquipment.variantsSerialized,
+        serialized: false, qty: 0, allocations: [], serials: [], tags: newEquipment.tags,
+      };
+    } else if (newEquipment.serialized) {
+      item = {
+        id: uid(), name: newEquipment.name.trim(),
+        location: newEquipment.location.trim() || "Lab", location2: newEquipment.location2.trim(),
+        category: newEquipment.category.trim(), serialized: true, qty: 0, allocations: [],
+        has_variants: false, variants: [], tags: newEquipment.tags,
+        serials: newEquipment.serialsText.split(/[\n,]/).map((s) => s.trim()).filter(Boolean)
+          .map((s) => ({ id: uid(), serial: s, allocatedBuildId: null, location: newEquipment.location.trim() || "Lab", location2: newEquipment.location2.trim() })),
+      };
+    } else {
+      item = {
+        id: uid(), name: newEquipment.name.trim(), qty: Math.max(0, parseInt(newEquipment.qty, 10) || 0),
+        location: newEquipment.location.trim() || "Lab", location2: newEquipment.location2.trim(),
+        category: newEquipment.category.trim(), serialized: false, allocations: [], serials: [],
+        has_variants: false, variants: [], tags: newEquipment.tags,
+      };
+    }
+    const { error } = await supabase.from("equipment").insert(item);
+    if (error) { alert("Failed to save equipment: " + error.message); return; }
+    setEquipment((p) => [...p, item].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
+    setNewEquipment({ name: "", qty: "1", location: "", location2: "", category: "", serialized: false, serialsText: "", has_variants: false, variantsText: "", variantsSerialized: false, tags: [] });
+    setShowAddEquipment(false);
+  };
+
+  const deleteEquipment = async (id) => {
+    const { error } = await supabase.from("equipment").delete().eq("id", id);
+    if (error) { alert("Failed to delete: " + error.message); return; }
+    setEquipment((p) => p.filter((x) => x.id !== id));
+  };
+
+  const updateEquipment = async (id, updates) => {
+    const { error } = await supabase.from("equipment").update(updates).eq("id", id);
+    if (error) { alert("Failed to update: " + error.message); return; }
+    setEquipment((p) => p.map((x) => (x.id === id ? { ...x, ...updates } : x)));
+  };
+
+  const adjustEquipmentQty = (id, delta) => {
+    const item = equipment.find((p) => p.id === id);
+    if (!item || item.serialized) return;
+    updateEquipment(id, { qty: Math.max(0, item.qty + delta) });
+  };
+
+  const updateEquipmentSerial = async (itemId, serialId, updates) => {
+    const item = equipment.find((p) => p.id === itemId);
+    if (!item) return;
+    const newSerials = item.serials.map((s) => s.id === serialId ? { ...s, ...updates } : s);
+    await updateEquipment(itemId, { serials: newSerials });
+  };
+
+  const addEquipmentSerial = async (itemId, serial, itemLocation, itemLocation2) => {
+    if (!serial.trim()) return;
+    const item = equipment.find((p) => p.id === itemId);
+    if (!item) return;
+    const newSerials = [...(item.serials || []), {
+      id: uid(), serial: serial.trim(), allocatedBuildId: null,
+      location: itemLocation || item.location || "Lab",
+      location2: itemLocation2 || item.location2 || "",
+    }];
+    await updateEquipment(itemId, { serials: newSerials });
+  };
+
+  const removeEquipmentSerial = async (itemId, serialId) => {
+    const item = equipment.find((p) => p.id === itemId);
+    if (!item) return;
+    await updateEquipment(itemId, { serials: item.serials.filter((s) => s.id !== serialId) });
   };
 
   const addBuildLine = () => setBuildLines((l) => [...l, { id: uid(), partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] }]);
@@ -836,7 +923,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v4.4.3</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v5.0</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -854,7 +941,7 @@ export default function LabInventory() {
           </div>
           <p className="mt-1 text-xs" style={{ color: "#8FA39A" }}>Parts inventory &amp; build tracking</p>
           <div className="flex gap-1 mt-5">
-            {[{ id: "parts", label: "Parts", icon: Boxes }, { id: "subbuilds", label: "Sub-builds", icon: Package }, { id: "builds", label: "Builds", icon: Hammer }, ...(isAdmin ? [{ id: "admin", label: "Admin", icon: Shield }] : [])].map((t) => (
+            {[{ id: "parts", label: "Parts", icon: Boxes }, { id: "subbuilds", label: "Sub-builds", icon: Package }, { id: "builds", label: "Builds", icon: Hammer }, { id: "equipment", label: "Team Equipment", icon: Briefcase }, ...(isAdmin ? [{ id: "admin", label: "Admin", icon: Shield }] : [])].map((t) => (
               <button key={t.id} onClick={() => setTab(t.id)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-t transition-colors"
                 style={{ background: tab === t.id ? "#141F1B" : "transparent", color: tab === t.id ? "#EAF0EC" : "#8FA39A", border: "1px solid", borderColor: tab === t.id ? "#233029" : "transparent", borderBottom: tab === t.id ? "1px solid #141F1B" : "1px solid transparent", marginBottom: "-1px" }}>
                 <t.icon size={13} />{t.label}
@@ -902,6 +989,14 @@ export default function LabInventory() {
             removePartFromBuild={removePartFromBuild} addPartToBuild={addPartToBuild}
             addSubbuildToMainBuild={addSubbuildToMainBuild} removeSubbuildFromMainBuild={removeSubbuildFromMainBuild}
             isAdmin={isAdmin}
+          />
+        ) : tab === "equipment" ? (
+          <EquipmentTab
+            equipment={equipment} showAddEquipment={showAddEquipment} setShowAddEquipment={setShowAddEquipment}
+            newEquipment={newEquipment} setNewEquipment={setNewEquipment} addEquipment={addEquipment}
+            deleteEquipment={deleteEquipment} adjustEquipmentQty={adjustEquipmentQty} updateEquipment={updateEquipment}
+            updateEquipmentSerial={updateEquipmentSerial} addEquipmentSerial={addEquipmentSerial} removeEquipmentSerial={removeEquipmentSerial}
+            parts={parts} builds={builds} subbuilds={subbuilds} isAdmin={isAdmin}
           />
         ) : (
           <AdminPanel />
@@ -1525,6 +1620,393 @@ locationData={locationData}
                   {(part.tags || []).length > 0 && (
                     <div className="flex flex-wrap justify-end gap-1">
                       {(part.tags || []).map((tag) => (
+                        <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "#1B2622", color: "#8FA39A", border: "1px solid #233029" }}>{tag}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---- TEAM EQUIPMENT TAB ----
+function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEquipment, setNewEquipment, addEquipment, deleteEquipment, adjustEquipmentQty, updateEquipment, updateEquipmentSerial, addEquipmentSerial, removeEquipmentSerial, parts, builds, subbuilds, isAdmin }) {
+  const locationData = getLocationOptions(parts, builds, subbuilds, equipment);
+  const [expanded, setExpanded] = useState({});
+  const [serialDraft, setSerialDraft] = useState({});
+  const [editingItemId, setEditingItemId] = useState(null);
+  const [editingSerialId, setEditingSerialId] = useState(null);
+  const [filterCategory, setFilterCategory] = useState("");
+  const [filterTags, setFilterTags] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const handleSaveEdit = async (id, updates) => { await updateEquipment(id, updates); setEditingItemId(null); };
+
+  const allCategories = [...new Set(equipment.map((p) => p.category).filter(Boolean))].sort();
+  const allTags = [...new Set(equipment.flatMap((p) => p.tags || []))].sort();
+
+  const filteredEquipment = equipment.filter((p) => {
+    if (filterCategory && p.category !== filterCategory) return false;
+    if (filterTags.length > 0 && !filterTags.some((t) => (p.tags || []).includes(t))) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      const matchesName = p.name.toLowerCase().includes(q);
+      const matchesCategory = (p.category || "").toLowerCase().includes(q);
+      const matchesSerial = (p.serials || []).some((s) => (s.serial || "").toLowerCase().includes(q));
+      const matchesVariant = (p.variants || []).some((v) => (v.name || "").toLowerCase().includes(q));
+      if (!matchesName && !matchesCategory && !matchesSerial && !matchesVariant) return false;
+    }
+    return true;
+  });
+
+  return (
+    <div>
+      <div className="relative mb-3">
+        <Search size={14} color="#5C6E66" className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <input
+          type="text"
+          placeholder="Search equipment by name, serial, category…"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className={`${inputCls} bench-input w-full`}
+          style={{ paddingLeft: "28px", paddingRight: searchQuery ? "28px" : undefined }}
+        />
+        {searchQuery && (
+          <button onClick={() => setSearchQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: "#6B8077" }} title="Clear search">
+            <X size={14} />
+          </button>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm" style={{ color: "#8FA39A" }}>{filteredEquipment.length} item{filteredEquipment.length === 1 ? "" : "s"}{(filterCategory || filterTags.length > 0 || searchQuery.trim()) ? ` (filtered)` : ""}</h2>
+        {isAdmin && <button onClick={() => setShowAddEquipment((v) => !v)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded" style={{ background: "#1B2622", border: "1px solid #2A3A33", color: "#5FB88A" }}>
+          <Plus size={13} /> Add equipment
+        </button>}
+      </div>
+
+      {(allCategories.length > 0 || allTags.length > 0) && (
+        <div className="flex flex-col gap-2 mb-4 p-3 rounded" style={{ background: "#141F1B", border: "1px solid #233029" }}>
+          {allCategories.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] uppercase tracking-wider shrink-0" style={{ color: "#5C6E66" }}>Category</span>
+              <button onClick={() => setFilterCategory("")} className="text-[11px] px-2 py-0.5 rounded" style={{ background: !filterCategory ? "#5FB88A" : "#1B2622", color: !filterCategory ? "#0F1714" : "#8FA39A", border: "1px solid #2A3A33", fontWeight: !filterCategory ? 600 : 400 }}>All</button>
+              {allCategories.map((cat) => (
+                <button key={cat} onClick={() => setFilterCategory(filterCategory === cat ? "" : cat)} className="text-[11px] px-2 py-0.5 rounded" style={{ background: filterCategory === cat ? "#5FB88A" : "#1B2622", color: filterCategory === cat ? "#0F1714" : "#8FA39A", border: "1px solid #2A3A33", fontWeight: filterCategory === cat ? 600 : 400 }}>{cat}</button>
+              ))}
+            </div>
+          )}
+          {allTags.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] uppercase tracking-wider shrink-0" style={{ color: "#5C6E66" }}>Tags</span>
+              {allTags.map((tag) => (
+                <button key={tag} onClick={() => setFilterTags((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag])} className="text-[11px] px-2 py-0.5 rounded" style={{ background: filterTags.includes(tag) ? "#D98A4B" : "#1B2622", color: filterTags.includes(tag) ? "#0F1714" : "#8FA39A", border: "1px solid #2A3A33", fontWeight: filterTags.includes(tag) ? 600 : 400 }}>{tag}</button>
+              ))}
+              {filterTags.length > 0 && <button onClick={() => setFilterTags([])} className="text-[11px] px-2 py-0.5 rounded" style={{ color: "#6B8077" }}>clear</button>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {showAddEquipment && (
+        <div className="bench-card rounded p-4 mb-4">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Name"><input autoFocus className={`${inputCls} bench-input`} placeholder="e.g. Cordless drill" value={newEquipment.name} onChange={(e) => setNewEquipment((p) => ({ ...p, name: e.target.value }))} /></Field>
+            <Field label="Category (optional)"><SuggestInput value={newEquipment.category} onChange={(v) => setNewEquipment((p) => ({ ...p, category: v }))} options={allCategories} placeholder="e.g. Power tools" /></Field>
+            <Field label="Primary Location">
+              <input list="loc-addequip" className={`${inputCls} bench-input`} placeholder="e.g. CCWF" value={newEquipment.location} onChange={(e) => setNewEquipment((p) => ({ ...p, location: e.target.value }))} />
+              <datalist id="loc-addequip">{locationData.allLocations.map((l) => <option key={l} value={l} />)}</datalist>
+            </Field>
+            <Field label="Sub Location">
+              <input list="loc2-addequip" className={`${inputCls} bench-input`} placeholder="e.g. Shed" value={newEquipment.location2} onChange={(e) => setNewEquipment((p) => ({ ...p, location2: e.target.value }))} />
+              <datalist id="loc2-addequip">{subLocationOptionsFor(newEquipment.location, locationData).map((l) => <option key={l} value={l} />)}</datalist>
+            </Field>
+            {!newEquipment.serialized && <Field label="Quantity"><input type="number" min="0" className={`${inputCls} bench-input`} value={newEquipment.qty} onChange={(e) => setNewEquipment((p) => ({ ...p, qty: e.target.value }))} /></Field>}
+          </div>
+          <div className="mt-3">
+            <span className="text-[10px] uppercase tracking-wider" style={{ color: "#8FA39A" }}>Tags</span>
+            <TagInput tags={newEquipment.tags || []} onChange={(tags) => setNewEquipment((p) => ({ ...p, tags }))} allTags={allTags} />
+          </div>
+          <label className="flex items-center gap-2 mt-3 text-xs cursor-pointer select-none" style={{ color: "#8FA39A" }}>
+            <input type="checkbox" checked={newEquipment.has_variants} onChange={(e) => setNewEquipment((p) => ({ ...p, has_variants: e.target.checked, serialized: false }))} style={{ accentColor: "#D98A4B" }} />
+            This item has variants (e.g. sizes, capacities)
+          </label>
+          {newEquipment.has_variants && (
+            <div className="mt-2">
+              <Field label="Variant names (one per line, or comma-separated)">
+                <textarea className={`${inputCls} bench-input`} rows={3} placeholder={"Small\nMedium\nLarge"} value={newEquipment.variantsText} onChange={(e) => setNewEquipment((p) => ({ ...p, variantsText: e.target.value }))} />
+              </Field>
+              <p className="text-[10px] mt-1" style={{ color: "#6B8077" }}>
+                {newEquipment.variantsText.split(/[\n,]/).map((s) => s.trim()).filter(Boolean).length} variants — you can set quantities and add more after saving.
+              </p>
+              <label className="flex items-center gap-2 mt-2 text-xs cursor-pointer select-none" style={{ color: "#8FA39A" }}>
+                <input type="checkbox" checked={newEquipment.variantsSerialized} onChange={(e) => setNewEquipment((p) => ({ ...p, variantsSerialized: e.target.checked }))} style={{ accentColor: "#D98A4B" }} />
+                Each individual unit has its own serial number
+              </label>
+            </div>
+          )}
+          {!newEquipment.has_variants && (
+            <label className="flex items-center gap-2 mt-2 text-xs cursor-pointer select-none" style={{ color: "#8FA39A" }}>
+              <input type="checkbox" checked={newEquipment.serialized} onChange={(e) => setNewEquipment((p) => ({ ...p, serialized: e.target.checked }))} style={{ accentColor: "#D98A4B" }} />
+              This item has individual serial numbers
+            </label>
+          )}
+          {newEquipment.serialized && !newEquipment.has_variants && (
+            <div className="mt-2">
+              <Field label="Serial numbers (one per line, or comma-separated)">
+                <textarea className={`${inputCls} bench-input`} rows={3} placeholder={"SN-001\nSN-002"} value={newEquipment.serialsText} onChange={(e) => setNewEquipment((p) => ({ ...p, serialsText: e.target.value }))} />
+              </Field>
+              <p className="text-[10px] mt-1" style={{ color: "#6B8077" }}>
+                {newEquipment.serialsText.split(/[\n,]/).map((s) => s.trim()).filter(Boolean).length} serials — all inherit the locations above. You can change individual ones after saving.
+              </p>
+            </div>
+          )}
+          <div className="flex gap-2 mt-3">
+            <button onClick={addEquipment} className="px-3 py-1.5 text-xs rounded" style={{ background: "#5FB88A", color: "#0F1714", fontWeight: 600 }}>Save item</button>
+            <button onClick={() => setShowAddEquipment(false)} className="px-3 py-1.5 text-xs rounded" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {equipment.length === 0 && !showAddEquipment && (
+        <div className="bench-card rounded p-6 text-center">
+          <p className="text-sm" style={{ color: "#8FA39A" }}>No equipment yet. Add your first item the team shares.</p>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-2">
+        {filteredEquipment.map((item) => {
+          const avail = availableQty(item);
+          const total = totalQty(item);
+          const isOpen = expanded[item.id] === undefined ? true : !!expanded[item.id];
+          const isEditing = editingItemId === item.id;
+
+          return (
+            <div key={item.id} className="bench-card rounded p-3.5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                  <div className="mt-1.5"><StatusDot part={item} /></div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                      <span className="text-sm font-semibold">{item.name}</span>
+                      {item.category && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "#1B2622", color: "#5FB88A" }}>{item.category}</span>}
+                    </div>
+                    <div className="text-xs mt-1">
+                      <span style={{ color: avail === 0 ? "#E0664C" : "#5FB88A" }}>{total} total</span>
+                    </div>
+
+                    {item.has_variants && (
+                      <div className="mt-2 flex flex-col gap-2">
+                        {(item.variants || []).map((v) => {
+                          const vTotal = (v.units || []).length;
+                          return (
+                            <div key={v.id} className="pl-2 border-l" style={{ borderColor: "#233029" }}>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-[11px] font-semibold" style={{ color: "#EAF0EC" }}>{v.name}</span>
+                                <span className="text-[10px]" style={{ color: "#8FA39A" }}>{vTotal} total</span>
+                              </div>
+                              {(() => {
+                                const locGroups = {};
+                                for (const u of (v.units || [])) {
+                                  const locKey = `${u.location || ""}|||${u.location2 || ""}`;
+                                  if (!locGroups[locKey]) locGroups[locKey] = { location: u.location || "", location2: u.location2 || "", units: [] };
+                                  locGroups[locKey].units.push(u);
+                                }
+                                return Object.values(locGroups).map((group, gi) => (
+                                  <div key={gi} className="pl-2 mb-1">
+                                    {(group.location || group.location2) && (
+                                      <div className="flex items-center gap-1 mb-1">
+                                        <MapPin size={10} color="#6B8077" />
+                                        <span className="text-[10px]" style={{ color: "#8FA39A" }}>{group.location}{group.location2 ? ` · ${group.location2}` : ""}</span>
+                                      </div>
+                                    )}
+                                    <div className="flex flex-col gap-1">
+                                      {group.units.map((u) => {
+                                        const isEditingUnit = editingSerialId === u.id;
+                                        return (
+                                          <div key={u.id} className="flex flex-col gap-0.5">
+                                            <div className="flex items-center justify-between gap-2 text-[11px]">
+                                              <span className="flex items-center gap-1.5">
+                                                <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: "#5FB88A" }} />
+                                                <span style={{ color: "#8FA39A" }}>{u.serial ? u.serial : v.name}</span>
+                                              </span>
+                                              <div className="flex items-center gap-1 shrink-0">
+                                                <button onClick={() => setEditingSerialId(isEditingUnit ? null : u.id)} className="w-5 h-5 rounded flex items-center justify-center" style={{ color: isEditingUnit ? "#5FB88A" : "#6B8077", border: "1px solid #2A3A33" }} title="Edit location">
+                                                  <Pencil size={10} />
+                                                </button>
+                                                <button onClick={() => updateEquipment(item.id, { variants: item.variants.map((x) => x.id === v.id ? { ...x, units: x.units.filter((y) => y.id !== u.id) } : x) })} style={{ color: "#E0664C" }} className="w-4 h-4 flex items-center justify-center"><X size={10} /></button>
+                                              </div>
+                                            </div>
+                                            {u.notes && !isEditingUnit && (
+                                              <div className="text-[10px] italic pl-3" style={{ color: "#6B8077" }}>Note: {u.notes}</div>
+                                            )}
+                                            {isEditingUnit && (
+                                              <EditSerialLocation
+                                                serial={{ serial: "", location: u.location || "", location2: u.location2 || "", notes: u.notes || "" }}
+                                                locationData={locationData}
+                                                onSave={async (updates) => {
+                                                  await updateEquipment(item.id, { variants: item.variants.map((x) => x.id === v.id ? { ...x, units: x.units.map((y) => y.id === u.id ? { ...y, location: updates.location, location2: updates.location2, notes: updates.notes } : y) } : x) });
+                                                  setEditingSerialId(null);
+                                                }}
+                                                onCancel={() => setEditingSerialId(null)}
+                                              />
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                ));
+                              })()}
+                              <div className="flex items-center gap-1 mt-1">
+                                {!item.variant_units_serialized && (
+                                  <button onClick={() => updateEquipment(item.id, { variants: item.variants.map((x) => x.id === v.id ? { ...x, units: [...(x.units || []), { id: uid(), location: item.location || "", location2: item.location2 || "", allocatedBuildId: null }] } : x) })} className="w-5 h-5 rounded text-xs flex items-center justify-center" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>+</button>
+                                )}
+                                <button onClick={() => { const anyUnit = [...(v.units || [])].reverse()[0]; if (anyUnit) updateEquipment(item.id, { variants: item.variants.map((x) => x.id === v.id ? { ...x, units: x.units.filter((u) => u.id !== anyUnit.id) } : x) }); }} className="w-5 h-5 rounded text-xs flex items-center justify-center" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>−</button>
+                              </div>
+                              {item.variant_units_serialized && (
+                                <div className="flex items-center gap-1.5 mt-1">
+                                  <input
+                                    placeholder="New serial…"
+                                    className="text-[11px] bg-transparent outline-none border-b py-0.5"
+                                    style={{ color: "#EAF0EC", borderColor: "#2A3A33", width: "120px" }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter" && e.target.value.trim()) {
+                                        updateEquipment(item.id, { variants: item.variants.map((x) => x.id === v.id ? { ...x, units: [...(x.units || []), { id: uid(), serial: e.target.value.trim(), location: item.location || "", location2: item.location2 || "", allocatedBuildId: null }] } : x) });
+                                        e.target.value = "";
+                                      }
+                                    }}
+                                  />
+                                  <Plus size={11} color="#5FB88A" />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                        <div className="flex items-center gap-1.5 mt-1 pl-2">
+                          <input
+                            placeholder="New variant name…"
+                            className="text-[11px] bg-transparent outline-none border-b py-0.5"
+                            style={{ color: "#EAF0EC", borderColor: "#2A3A33", width: "150px" }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && e.target.value.trim()) {
+                                updateEquipment(item.id, { variants: [...(item.variants || []), { id: uid(), name: e.target.value.trim(), units: [] }] });
+                                e.target.value = "";
+                              }
+                            }}
+                          />
+                          <Plus size={11} color="#5FB88A" />
+                        </div>
+                      </div>
+                    )}
+
+                    {!item.has_variants && <LocationDisplay location={item.location} location2={item.location2} />}
+
+                    {item.notes && !isEditing && (
+                      <p className="text-[11px] mt-1.5 italic" style={{ color: "#8FA39A" }}>Note: {item.notes}</p>
+                    )}
+
+                    {isEditing && (
+                      <EditPartForm part={item} usedQty={0} onSave={(updates) => handleSaveEdit(item.id, updates)} onCancel={() => setEditingItemId(null)} allCategories={allCategories} allTags={allTags} locationData={locationData} />
+                    )}
+
+                    {item.serialized && !isEditing && (
+                      <div className="mt-2">
+                        <button onClick={() => setExpanded((e) => ({ ...e, [item.id]: !e[item.id] }))} className="flex items-center gap-1 text-[11px]" style={{ color: "#5FB88A" }}>
+                          {isOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                          {isOpen ? `Hide serials` : `Show ${total} serial${total === 1 ? "" : "s"}`}
+                        </button>
+                        {isOpen && (
+                          <div className="mt-2 flex flex-col gap-3 pl-1 border-l" style={{ borderColor: "#233029" }}>
+                            {(() => {
+                              const locGroups = {};
+                              for (const s of (item.serials || [])) {
+                                const locKey = `${s.location || ""}|||${s.location2 || ""}`;
+                                if (!locGroups[locKey]) locGroups[locKey] = { location: s.location || "", location2: s.location2 || "", serials: [] };
+                                locGroups[locKey].serials.push(s);
+                              }
+                              return Object.values(locGroups).map((group, gi) => (
+                                <div key={gi} className="pl-2">
+                                  {(group.location || group.location2) && (
+                                    <div className="flex items-center gap-1 mb-1.5">
+                                      <MapPin size={11} color="#6B8077" />
+                                      <span className="text-[10px]" style={{ color: "#8FA39A" }}>{group.location}{group.location2 ? ` · ${group.location2}` : ""}</span>
+                                    </div>
+                                  )}
+                                  <div className="flex flex-col gap-1 pl-2">
+                                    {group.serials.map((s) => {
+                                      const isEditingSerial = editingSerialId === s.id;
+                                      return (
+                                        <div key={s.id} className="flex flex-col gap-0.5">
+                                          <div className="flex items-center justify-between gap-2">
+                                            <span className="flex items-center gap-1.5 text-[11px]">
+                                              <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#5FB88A" }} />
+                                              <span style={{ color: "#EAF0EC" }}>{s.serial}</span>
+                                            </span>
+                                            <div className="flex items-center gap-1 shrink-0">
+                                              <button onClick={() => setEditingSerialId(isEditingSerial ? null : s.id)} className="w-5 h-5 rounded flex items-center justify-center" style={{ color: isEditingSerial ? "#5FB88A" : "#6B8077", border: "1px solid #2A3A33" }} title="Edit location">
+                                                <Pencil size={10} />
+                                              </button>
+                                              <button onClick={() => removeEquipmentSerial(item.id, s.id)} style={{ color: "#E0664C" }} className="w-5 h-5 flex items-center justify-center"><X size={11} /></button>
+                                            </div>
+                                          </div>
+                                          {s.notes && !isEditingSerial && (
+                                            <div className="text-[10px] italic pl-3" style={{ color: "#6B8077" }}>Note: {s.notes}</div>
+                                          )}
+                                          {isEditingSerial && (
+                                            <EditSerialLocation serial={s} locationData={locationData} onSave={async (updates) => { await updateEquipmentSerial(item.id, s.id, updates); setEditingSerialId(null); }} onCancel={() => setEditingSerialId(null)} />
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              ));
+                            })()}
+                            <div className="flex items-center gap-1.5 pl-2">
+                              <input
+                                value={serialDraft[item.id] || ""}
+                                onChange={(e) => setSerialDraft((d) => ({ ...d, [item.id]: e.target.value }))}
+                                onKeyDown={(e) => { if (e.key === "Enter") { addEquipmentSerial(item.id, serialDraft[item.id] || "", item.location, item.location2); setSerialDraft((d) => ({ ...d, [item.id]: "" })); } }}
+                                placeholder="New serial…"
+                                className="text-[11px] bg-transparent outline-none border-b py-0.5"
+                                style={{ color: "#EAF0EC", borderColor: "#2A3A33", width: "140px" }}
+                              />
+                              <button onClick={() => { addEquipmentSerial(item.id, serialDraft[item.id] || "", item.location, item.location2); setSerialDraft((d) => ({ ...d, [item.id]: "" })); }} style={{ color: "#5FB88A" }}>
+                                <Plus size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-col items-end justify-between gap-2 shrink-0 self-stretch">
+                  <div className="flex items-center gap-1.5">
+                    {!item.serialized && !item.has_variants && (
+                      <>
+                        <button onClick={() => adjustEquipmentQty(item.id, -1)} className="w-6 h-6 rounded text-xs flex items-center justify-center" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>−</button>
+                        <span className="text-xs w-5 text-center">{item.qty}</span>
+                        <button onClick={() => adjustEquipmentQty(item.id, 1)} className="w-6 h-6 rounded text-xs flex items-center justify-center" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>+</button>
+                      </>
+                    )}
+                    {isAdmin && <button onClick={() => setEditingItemId(isEditing ? null : item.id)} className="w-6 h-6 rounded flex items-center justify-center ml-1" style={{ color: isEditing ? "#5FB88A" : "#8FA39A", border: "1px solid #2A3A33" }} title="Edit item">
+                      <Pencil size={12} />
+                    </button>}
+                    {isAdmin && <button onClick={() => deleteEquipment(item.id)} className="w-6 h-6 rounded flex items-center justify-center" style={{ color: "#E0664C" }}>
+                      <Trash2 size={13} />
+                    </button>}
+                  </div>
+                  {(item.tags || []).length > 0 && (
+                    <div className="flex flex-wrap justify-end gap-1">
+                      {(item.tags || []).map((tag) => (
                         <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "#1B2622", color: "#8FA39A", border: "1px solid #233029" }}>{tag}</span>
                       ))}
                     </div>
