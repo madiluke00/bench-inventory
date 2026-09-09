@@ -507,7 +507,7 @@ export default function LabInventory() {
   const adjustEquipmentQty = (id, delta) => {
     const item = equipment.find((p) => p.id === id);
     if (!item || item.serialized) return;
-    updateEquipment(id, { qty: Math.max(0, item.qty + delta) });
+    updateEquipment(id, { qty: Math.max(allocatedQty(item), item.qty + delta) });
   };
 
   const updateEquipmentSerial = async (itemId, serialId, updates) => {
@@ -533,6 +533,65 @@ export default function LabInventory() {
     const item = equipment.find((p) => p.id === itemId);
     if (!item) return;
     await updateEquipment(itemId, { serials: item.serials.filter((s) => s.id !== serialId) });
+  };
+
+  const addEquipmentUsage = async (itemId, qty, usedBy, purpose, returnDate) => {
+    const item = equipment.find((p) => p.id === itemId);
+    if (!item) return;
+    const q = parseInt(qty, 10) || 0;
+    if (q <= 0 || q > availableQty(item)) { alert("Quantity exceeds what's available."); return; }
+    const newAllocations = [...(item.allocations || []), { id: uid(), qty: q, usedBy: usedBy.trim(), purpose: purpose.trim(), returnDate: returnDate || null }];
+    await updateEquipment(itemId, { allocations: newAllocations });
+  };
+
+  const updateEquipmentUsage = async (itemId, usageId, updates) => {
+    const item = equipment.find((p) => p.id === itemId);
+    if (!item) return;
+    const existing = (item.allocations || []).find((a) => a.id === usageId);
+    if (!existing) return;
+    let qty = existing.qty;
+    if (updates.qty !== undefined) {
+      const newQty = parseInt(updates.qty, 10) || 0;
+      const maxAllowed = availableQty(item) + existing.qty;
+      if (newQty <= 0 || newQty > maxAllowed) { alert("Quantity exceeds what's available."); return; }
+      qty = newQty;
+    }
+    const newAllocations = item.allocations.map((a) => a.id === usageId ? { ...a, usedBy: updates.usedBy.trim(), purpose: updates.purpose.trim(), returnDate: updates.returnDate || null, qty } : a);
+    await updateEquipment(itemId, { allocations: newAllocations });
+  };
+
+  const removeEquipmentUsage = async (itemId, usageId) => {
+    const item = equipment.find((p) => p.id === itemId);
+    if (!item) return;
+    await updateEquipment(itemId, { allocations: (item.allocations || []).filter((a) => a.id !== usageId) });
+  };
+
+  const markEquipmentSerialInUse = async (itemId, serialId, usedBy, purpose, returnDate) => {
+    const item = equipment.find((p) => p.id === itemId);
+    if (!item) return;
+    const newSerials = item.serials.map((s) => s.id === serialId ? { ...s, allocatedBuildId: true, usedBy: usedBy.trim(), purpose: purpose.trim(), returnDate: returnDate || null } : s);
+    await updateEquipment(itemId, { serials: newSerials });
+  };
+
+  const returnEquipmentSerial = async (itemId, serialId) => {
+    const item = equipment.find((p) => p.id === itemId);
+    if (!item) return;
+    const newSerials = item.serials.map((s) => s.id === serialId ? { ...s, allocatedBuildId: null, usedBy: null, purpose: null, returnDate: null } : s);
+    await updateEquipment(itemId, { serials: newSerials });
+  };
+
+  const markEquipmentUnitInUse = async (itemId, variantId, unitId, usedBy, purpose, returnDate) => {
+    const item = equipment.find((p) => p.id === itemId);
+    if (!item) return;
+    const newVariants = item.variants.map((v) => v.id === variantId ? { ...v, units: v.units.map((u) => u.id === unitId ? { ...u, allocatedBuildId: true, usedBy: usedBy.trim(), purpose: purpose.trim(), returnDate: returnDate || null } : u) } : v);
+    await updateEquipment(itemId, { variants: newVariants });
+  };
+
+  const returnEquipmentUnit = async (itemId, variantId, unitId) => {
+    const item = equipment.find((p) => p.id === itemId);
+    if (!item) return;
+    const newVariants = item.variants.map((v) => v.id === variantId ? { ...v, units: v.units.map((u) => u.id === unitId ? { ...u, allocatedBuildId: null, usedBy: null, purpose: null, returnDate: null } : u) } : v);
+    await updateEquipment(itemId, { variants: newVariants });
   };
 
   const addBuildLine = () => setBuildLines((l) => [...l, { id: uid(), partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] }]);
@@ -923,7 +982,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v5.0</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v5.1</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -996,6 +1055,9 @@ export default function LabInventory() {
             newEquipment={newEquipment} setNewEquipment={setNewEquipment} addEquipment={addEquipment}
             deleteEquipment={deleteEquipment} adjustEquipmentQty={adjustEquipmentQty} updateEquipment={updateEquipment}
             updateEquipmentSerial={updateEquipmentSerial} addEquipmentSerial={addEquipmentSerial} removeEquipmentSerial={removeEquipmentSerial}
+            addEquipmentUsage={addEquipmentUsage} updateEquipmentUsage={updateEquipmentUsage} removeEquipmentUsage={removeEquipmentUsage}
+            markEquipmentSerialInUse={markEquipmentSerialInUse} returnEquipmentSerial={returnEquipmentSerial}
+            markEquipmentUnitInUse={markEquipmentUnitInUse} returnEquipmentUnit={returnEquipmentUnit}
             parts={parts} builds={builds} subbuilds={subbuilds} isAdmin={isAdmin}
           />
         ) : (
@@ -1085,6 +1147,29 @@ function VariantUnitAdd({ part, variant, updatePart }) {
           setDraft({ location: part.location || "", location2: part.location2 || "" });
         }} className="flex items-center gap-1 px-2 py-0.5 text-[11px] rounded" style={{ background: "#5FB88A", color: "#0F1714", fontWeight: 600 }}><Check size={10} /> Add</button>
         <button onClick={() => setShow(false)} className="px-2 py-0.5 text-[11px] rounded" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+// ---- USAGE FORM (check-out / edit usage) ----
+function UsageForm({ initial, onSave, onCancel, usedBySuggestions, maxQty }) {
+  const [draft, setDraft] = useState({ qty: initial?.qty ?? 1, usedBy: initial?.usedBy || "", purpose: initial?.purpose || "", returnDate: initial?.returnDate || "" });
+  const listId = useRef(`usedby-${uid()}`).current;
+  return (
+    <div className="flex flex-col gap-1.5 mt-1 pl-2">
+      <div className="grid grid-cols-2 gap-1.5">
+        {maxQty !== undefined && (
+          <input type="number" min="1" max={maxQty} className={`${inputCls} bench-input text-xs py-1`} placeholder="Qty" value={draft.qty} onChange={(e) => setDraft((d) => ({ ...d, qty: e.target.value }))} />
+        )}
+        <input list={listId} className={`${inputCls} bench-input text-xs py-1`} placeholder="Used by…" value={draft.usedBy} onChange={(e) => setDraft((d) => ({ ...d, usedBy: e.target.value }))} />
+        <datalist id={listId}>{usedBySuggestions.map((n) => <option key={n} value={n} />)}</datalist>
+        <input className={`${inputCls} bench-input text-xs py-1`} placeholder="Purpose (e.g. Teaching)" value={draft.purpose} onChange={(e) => setDraft((d) => ({ ...d, purpose: e.target.value }))} />
+        <input type="date" className={`${inputCls} bench-input text-xs py-1`} value={draft.returnDate || ""} onChange={(e) => setDraft((d) => ({ ...d, returnDate: e.target.value }))} />
+      </div>
+      <div className="flex gap-1.5">
+        <button onClick={() => { if (!draft.usedBy.trim()) { alert("Enter who it's being used by."); return; } onSave(draft); }} className="flex items-center gap-1 px-2 py-0.5 text-[11px] rounded" style={{ background: "#5FB88A", color: "#0F1714", fontWeight: 600 }}><Check size={10} /> Save</button>
+        <button onClick={onCancel} className="px-2 py-0.5 text-[11px] rounded" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>Cancel</button>
       </div>
     </div>
   );
@@ -1635,24 +1720,38 @@ locationData={locationData}
 }
 
 // ---- TEAM EQUIPMENT TAB ----
-function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEquipment, setNewEquipment, addEquipment, deleteEquipment, adjustEquipmentQty, updateEquipment, updateEquipmentSerial, addEquipmentSerial, removeEquipmentSerial, parts, builds, subbuilds, isAdmin }) {
+function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEquipment, setNewEquipment, addEquipment, deleteEquipment, adjustEquipmentQty, updateEquipment, updateEquipmentSerial, addEquipmentSerial, removeEquipmentSerial, addEquipmentUsage, updateEquipmentUsage, removeEquipmentUsage, markEquipmentSerialInUse, returnEquipmentSerial, markEquipmentUnitInUse, returnEquipmentUnit, parts, builds, subbuilds, isAdmin }) {
   const locationData = getLocationOptions(parts, builds, subbuilds, equipment);
   const [expanded, setExpanded] = useState({});
   const [serialDraft, setSerialDraft] = useState({});
   const [editingItemId, setEditingItemId] = useState(null);
   const [editingSerialId, setEditingSerialId] = useState(null);
+  const [usageFormId, setUsageFormId] = useState(null);
+  const [addingUsageFor, setAddingUsageFor] = useState(null);
+  const [editingUsageId, setEditingUsageId] = useState(null);
   const [filterCategory, setFilterCategory] = useState("");
   const [filterTags, setFilterTags] = useState([]);
+  const [filterUsedBy, setFilterUsedBy] = useState("");
+  const [onlyInUse, setOnlyInUse] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
   const handleSaveEdit = async (id, updates) => { await updateEquipment(id, updates); setEditingItemId(null); };
 
+  const itemUsedByNames = (item) => {
+    if (item.has_variants) return (item.variants || []).flatMap((v) => (v.units || []).filter((u) => u.usedBy).map((u) => u.usedBy));
+    if (item.serialized) return (item.serials || []).filter((s) => s.usedBy).map((s) => s.usedBy);
+    return (item.allocations || []).map((a) => a.usedBy).filter(Boolean);
+  };
+
   const allCategories = [...new Set(equipment.map((p) => p.category).filter(Boolean))].sort();
   const allTags = [...new Set(equipment.flatMap((p) => p.tags || []))].sort();
+  const allUsedBy = [...new Set(equipment.flatMap((p) => itemUsedByNames(p)))].sort();
 
   const filteredEquipment = equipment.filter((p) => {
     if (filterCategory && p.category !== filterCategory) return false;
     if (filterTags.length > 0 && !filterTags.some((t) => (p.tags || []).includes(t))) return false;
+    if (filterUsedBy && !itemUsedByNames(p).includes(filterUsedBy)) return false;
+    if (onlyInUse && availableQty(p) >= totalQty(p)) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
       const matchesName = p.name.toLowerCase().includes(q);
@@ -1684,13 +1783,13 @@ function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEqu
       </div>
 
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm" style={{ color: "#8FA39A" }}>{filteredEquipment.length} item{filteredEquipment.length === 1 ? "" : "s"}{(filterCategory || filterTags.length > 0 || searchQuery.trim()) ? ` (filtered)` : ""}</h2>
+        <h2 className="text-sm" style={{ color: "#8FA39A" }}>{filteredEquipment.length} item{filteredEquipment.length === 1 ? "" : "s"}{(filterCategory || filterTags.length > 0 || filterUsedBy || onlyInUse || searchQuery.trim()) ? ` (filtered)` : ""}</h2>
         {isAdmin && <button onClick={() => setShowAddEquipment((v) => !v)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded" style={{ background: "#1B2622", border: "1px solid #2A3A33", color: "#5FB88A" }}>
           <Plus size={13} /> Add equipment
         </button>}
       </div>
 
-      {(allCategories.length > 0 || allTags.length > 0) && (
+      {(allCategories.length > 0 || allTags.length > 0 || allUsedBy.length > 0) && (
         <div className="flex flex-col gap-2 mb-4 p-3 rounded" style={{ background: "#141F1B", border: "1px solid #233029" }}>
           {allCategories.length > 0 && (
             <div className="flex items-center gap-2 flex-wrap">
@@ -1708,6 +1807,18 @@ function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEqu
                 <button key={tag} onClick={() => setFilterTags((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag])} className="text-[11px] px-2 py-0.5 rounded" style={{ background: filterTags.includes(tag) ? "#D98A4B" : "#1B2622", color: filterTags.includes(tag) ? "#0F1714" : "#8FA39A", border: "1px solid #2A3A33", fontWeight: filterTags.includes(tag) ? 600 : 400 }}>{tag}</button>
               ))}
               {filterTags.length > 0 && <button onClick={() => setFilterTags([])} className="text-[11px] px-2 py-0.5 rounded" style={{ color: "#6B8077" }}>clear</button>}
+            </div>
+          )}
+          {allUsedBy.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] uppercase tracking-wider shrink-0" style={{ color: "#5C6E66" }}>In use by</span>
+              <button onClick={() => setFilterUsedBy("")} className="text-[11px] px-2 py-0.5 rounded" style={{ background: !filterUsedBy ? "#5FB88A" : "#1B2622", color: !filterUsedBy ? "#0F1714" : "#8FA39A", border: "1px solid #2A3A33", fontWeight: !filterUsedBy ? 600 : 400 }}>All</button>
+              {allUsedBy.map((name) => (
+                <button key={name} onClick={() => setFilterUsedBy(filterUsedBy === name ? "" : name)} className="text-[11px] px-2 py-0.5 rounded" style={{ background: filterUsedBy === name ? "#D98A4B" : "#1B2622", color: filterUsedBy === name ? "#0F1714" : "#8FA39A", border: "1px solid #2A3A33", fontWeight: filterUsedBy === name ? 600 : 400 }}>{name}</button>
+              ))}
+              <button onClick={() => setOnlyInUse((v) => !v)} className="text-[11px] px-2 py-0.5 rounded ml-2" style={{ background: onlyInUse ? "#D98A4B" : "#1B2622", color: onlyInUse ? "#0F1714" : "#8FA39A", border: "1px solid #2A3A33", fontWeight: onlyInUse ? 600 : 400 }}>
+                Only show in-use
+              </button>
             </div>
           )}
         </div>
@@ -1797,18 +1908,22 @@ function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEqu
                       {item.category && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "#1B2622", color: "#5FB88A" }}>{item.category}</span>}
                     </div>
                     <div className="text-xs mt-1">
-                      <span style={{ color: avail === 0 ? "#E0664C" : "#5FB88A" }}>{total} total</span>
+                      <span style={{ color: avail === 0 ? "#E0664C" : "#5FB88A" }}>{avail} available</span>
+                      <span style={{ color: "#8FA39A" }}> · {total} total</span>
                     </div>
 
                     {item.has_variants && (
                       <div className="mt-2 flex flex-col gap-2">
                         {(item.variants || []).map((v) => {
+                          const vAvail = variantAvailableQty(v);
                           const vTotal = (v.units || []).length;
                           return (
                             <div key={v.id} className="pl-2 border-l" style={{ borderColor: "#233029" }}>
                               <div className="flex items-center gap-2 mb-1">
                                 <span className="text-[11px] font-semibold" style={{ color: "#EAF0EC" }}>{v.name}</span>
-                                <span className="text-[10px]" style={{ color: "#8FA39A" }}>{vTotal} total</span>
+                                <span className="text-[10px]" style={{ color: vAvail === 0 && vTotal > 0 ? "#E0664C" : vAvail === vTotal ? "#5FB88A" : "#D98A4B" }}>
+                                  {vAvail} free · {vTotal} total
+                                </span>
                               </div>
                               {(() => {
                                 const locGroups = {};
@@ -1828,20 +1943,34 @@ function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEqu
                                     <div className="flex flex-col gap-1">
                                       {group.units.map((u) => {
                                         const isEditingUnit = editingSerialId === u.id;
+                                        const isUsageFormOpen = usageFormId === u.id;
                                         return (
                                           <div key={u.id} className="flex flex-col gap-0.5">
                                             <div className="flex items-center justify-between gap-2 text-[11px]">
                                               <span className="flex items-center gap-1.5">
-                                                <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: "#5FB88A" }} />
+                                                <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: u.allocatedBuildId ? "#D98A4B" : "#5FB88A" }} />
                                                 <span style={{ color: "#8FA39A" }}>{u.serial ? u.serial : v.name}</span>
                                               </span>
                                               <div className="flex items-center gap-1 shrink-0">
+                                                {isAdmin && (
+                                                  <button onClick={() => setUsageFormId(isUsageFormOpen ? null : u.id)} className="w-5 h-5 rounded flex items-center justify-center" style={{ color: isUsageFormOpen ? "#D98A4B" : "#6B8077", border: "1px solid #2A3A33" }} title={u.allocatedBuildId ? "Edit usage" : "Check out"}>
+                                                    <Tag size={10} />
+                                                  </button>
+                                                )}
                                                 <button onClick={() => setEditingSerialId(isEditingUnit ? null : u.id)} className="w-5 h-5 rounded flex items-center justify-center" style={{ color: isEditingUnit ? "#5FB88A" : "#6B8077", border: "1px solid #2A3A33" }} title="Edit location">
                                                   <Pencil size={10} />
                                                 </button>
-                                                <button onClick={() => updateEquipment(item.id, { variants: item.variants.map((x) => x.id === v.id ? { ...x, units: x.units.filter((y) => y.id !== u.id) } : x) })} style={{ color: "#E0664C" }} className="w-4 h-4 flex items-center justify-center"><X size={10} /></button>
+                                                {!u.allocatedBuildId && (
+                                                  <button onClick={() => updateEquipment(item.id, { variants: item.variants.map((x) => x.id === v.id ? { ...x, units: x.units.filter((y) => y.id !== u.id) } : x) })} style={{ color: "#E0664C" }} className="w-4 h-4 flex items-center justify-center"><X size={10} /></button>
+                                                )}
                                               </div>
                                             </div>
+                                            {u.allocatedBuildId && !isUsageFormOpen && (
+                                              <div className="text-[10px] pl-3" style={{ color: "#D98A4B" }}>
+                                                in use by {u.usedBy}{u.purpose ? ` — ${u.purpose}` : ""}{u.returnDate ? ` (back ${u.returnDate})` : ""}
+                                                {isAdmin && <button onClick={() => returnEquipmentUnit(item.id, v.id, u.id)} className="ml-2 underline" style={{ color: "#8FA39A" }}>Return</button>}
+                                              </div>
+                                            )}
                                             {u.notes && !isEditingUnit && (
                                               <div className="text-[10px] italic pl-3" style={{ color: "#6B8077" }}>Note: {u.notes}</div>
                                             )}
@@ -1856,6 +1985,14 @@ function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEqu
                                                 onCancel={() => setEditingSerialId(null)}
                                               />
                                             )}
+                                            {isUsageFormOpen && (
+                                              <UsageForm
+                                                initial={u.allocatedBuildId ? u : undefined}
+                                                usedBySuggestions={allUsedBy}
+                                                onSave={async (draft) => { await markEquipmentUnitInUse(item.id, v.id, u.id, draft.usedBy, draft.purpose, draft.returnDate); setUsageFormId(null); }}
+                                                onCancel={() => setUsageFormId(null)}
+                                              />
+                                            )}
                                           </div>
                                         );
                                       })}
@@ -1867,7 +2004,7 @@ function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEqu
                                 {!item.variant_units_serialized && (
                                   <button onClick={() => updateEquipment(item.id, { variants: item.variants.map((x) => x.id === v.id ? { ...x, units: [...(x.units || []), { id: uid(), location: item.location || "", location2: item.location2 || "", allocatedBuildId: null }] } : x) })} className="w-5 h-5 rounded text-xs flex items-center justify-center" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>+</button>
                                 )}
-                                <button onClick={() => { const anyUnit = [...(v.units || [])].reverse()[0]; if (anyUnit) updateEquipment(item.id, { variants: item.variants.map((x) => x.id === v.id ? { ...x, units: x.units.filter((u) => u.id !== anyUnit.id) } : x) }); }} className="w-5 h-5 rounded text-xs flex items-center justify-center" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>−</button>
+                                <button onClick={() => { const anyUnit = [...(v.units || [])].reverse().find((u) => !u.allocatedBuildId); if (anyUnit) updateEquipment(item.id, { variants: item.variants.map((x) => x.id === v.id ? { ...x, units: x.units.filter((u) => u.id !== anyUnit.id) } : x) }); }} className="w-5 h-5 rounded text-xs flex items-center justify-center" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>−</button>
                               </div>
                               {item.variant_units_serialized && (
                                 <div className="flex items-center gap-1.5 mt-1">
@@ -1907,12 +2044,65 @@ function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEqu
 
                     {!item.has_variants && <LocationDisplay location={item.location} location2={item.location2} />}
 
+                    {!item.has_variants && !item.serialized && !isEditing && (
+                      <div className="mt-2">
+                        {(item.allocations || []).length > 0 && (
+                          <div className="flex flex-col gap-1 mb-1.5">
+                            {item.allocations.map((a) => {
+                              const isEditingUsage = editingUsageId === a.id;
+                              return (
+                                <div key={a.id} className="text-[11px]">
+                                  {!isEditingUsage ? (
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span style={{ color: "#D98A4B" }}>
+                                        ↳ {a.qty} in use by {a.usedBy}{a.purpose ? ` — ${a.purpose}` : ""}{a.returnDate ? ` (back ${a.returnDate})` : ""}
+                                      </span>
+                                      {isAdmin && (
+                                        <div className="flex items-center gap-1 shrink-0">
+                                          <button onClick={() => setEditingUsageId(a.id)} className="w-5 h-5 rounded flex items-center justify-center" style={{ color: "#6B8077", border: "1px solid #2A3A33" }} title="Edit"><Pencil size={10} /></button>
+                                          <button onClick={() => removeEquipmentUsage(item.id, a.id)} className="w-5 h-5 flex items-center justify-center" style={{ color: "#E0664C" }} title="Return"><X size={11} /></button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <UsageForm
+                                      initial={a}
+                                      maxQty={availableQty(item) + a.qty}
+                                      usedBySuggestions={allUsedBy}
+                                      onSave={async (draft) => { await updateEquipmentUsage(item.id, a.id, draft); setEditingUsageId(null); }}
+                                      onCancel={() => setEditingUsageId(null)}
+                                    />
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {isAdmin && (
+                          addingUsageFor === item.id ? (
+                            <UsageForm
+                              maxQty={availableQty(item)}
+                              usedBySuggestions={allUsedBy}
+                              onSave={async (draft) => { await addEquipmentUsage(item.id, draft.qty, draft.usedBy, draft.purpose, draft.returnDate); setAddingUsageFor(null); }}
+                              onCancel={() => setAddingUsageFor(null)}
+                            />
+                          ) : (
+                            avail > 0 && (
+                              <button onClick={() => setAddingUsageFor(item.id)} className="flex items-center gap-1 text-[11px]" style={{ color: "#D98A4B" }}>
+                                <Plus size={10} /> Check out
+                              </button>
+                            )
+                          )
+                        )}
+                      </div>
+                    )}
+
                     {item.notes && !isEditing && (
                       <p className="text-[11px] mt-1.5 italic" style={{ color: "#8FA39A" }}>Note: {item.notes}</p>
                     )}
 
                     {isEditing && (
-                      <EditPartForm part={item} usedQty={0} onSave={(updates) => handleSaveEdit(item.id, updates)} onCancel={() => setEditingItemId(null)} allCategories={allCategories} allTags={allTags} locationData={locationData} />
+                      <EditPartForm part={item} usedQty={allocatedQty(item)} onSave={(updates) => handleSaveEdit(item.id, updates)} onCancel={() => setEditingItemId(null)} allCategories={allCategories} allTags={allTags} locationData={locationData} />
                     )}
 
                     {item.serialized && !isEditing && (
@@ -1941,25 +2131,47 @@ function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEqu
                                   <div className="flex flex-col gap-1 pl-2">
                                     {group.serials.map((s) => {
                                       const isEditingSerial = editingSerialId === s.id;
+                                      const isUsageFormOpen = usageFormId === s.id;
                                       return (
                                         <div key={s.id} className="flex flex-col gap-0.5">
                                           <div className="flex items-center justify-between gap-2">
                                             <span className="flex items-center gap-1.5 text-[11px]">
-                                              <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#5FB88A" }} />
+                                              <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ background: s.allocatedBuildId ? "#D98A4B" : "#5FB88A" }} />
                                               <span style={{ color: "#EAF0EC" }}>{s.serial}</span>
                                             </span>
                                             <div className="flex items-center gap-1 shrink-0">
+                                              {isAdmin && (
+                                                <button onClick={() => setUsageFormId(isUsageFormOpen ? null : s.id)} className="w-5 h-5 rounded flex items-center justify-center" style={{ color: isUsageFormOpen ? "#D98A4B" : "#6B8077", border: "1px solid #2A3A33" }} title={s.allocatedBuildId ? "Edit usage" : "Check out"}>
+                                                  <Tag size={10} />
+                                                </button>
+                                              )}
                                               <button onClick={() => setEditingSerialId(isEditingSerial ? null : s.id)} className="w-5 h-5 rounded flex items-center justify-center" style={{ color: isEditingSerial ? "#5FB88A" : "#6B8077", border: "1px solid #2A3A33" }} title="Edit location">
                                                 <Pencil size={10} />
                                               </button>
-                                              <button onClick={() => removeEquipmentSerial(item.id, s.id)} style={{ color: "#E0664C" }} className="w-5 h-5 flex items-center justify-center"><X size={11} /></button>
+                                              {!s.allocatedBuildId && (
+                                                <button onClick={() => removeEquipmentSerial(item.id, s.id)} style={{ color: "#E0664C" }} className="w-5 h-5 flex items-center justify-center"><X size={11} /></button>
+                                              )}
                                             </div>
                                           </div>
+                                          {s.allocatedBuildId && !isUsageFormOpen && (
+                                            <div className="text-[10px] pl-3" style={{ color: "#D98A4B" }}>
+                                              in use by {s.usedBy}{s.purpose ? ` — ${s.purpose}` : ""}{s.returnDate ? ` (back ${s.returnDate})` : ""}
+                                              {isAdmin && <button onClick={() => returnEquipmentSerial(item.id, s.id)} className="ml-2 underline" style={{ color: "#8FA39A" }}>Return</button>}
+                                            </div>
+                                          )}
                                           {s.notes && !isEditingSerial && (
                                             <div className="text-[10px] italic pl-3" style={{ color: "#6B8077" }}>Note: {s.notes}</div>
                                           )}
                                           {isEditingSerial && (
                                             <EditSerialLocation serial={s} locationData={locationData} onSave={async (updates) => { await updateEquipmentSerial(item.id, s.id, updates); setEditingSerialId(null); }} onCancel={() => setEditingSerialId(null)} />
+                                          )}
+                                          {isUsageFormOpen && (
+                                            <UsageForm
+                                              initial={s.allocatedBuildId ? s : undefined}
+                                              usedBySuggestions={allUsedBy}
+                                              onSave={async (draft) => { await markEquipmentSerialInUse(item.id, s.id, draft.usedBy, draft.purpose, draft.returnDate); setUsageFormId(null); }}
+                                              onCancel={() => setUsageFormId(null)}
+                                            />
                                           )}
                                         </div>
                                       );
