@@ -836,7 +836,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v4.3.1</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v4.4</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -1006,6 +1006,7 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
     const [filterCategory, setFilterCategory] = useState("");
   const [filterTags, setFilterTags] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState("alpha");
 
   const handleSaveEdit = async (id, updates) => { await updatePart(id, updates); setEditingPartId(null); };
 
@@ -1024,6 +1025,22 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
       if (!matchesName && !matchesCategory && !matchesSerial && !matchesVariant) return false;
     }
     return true;
+  });
+
+  const availabilityRank = (p) => {
+    const avail = availableQty(p);
+    const total = totalQty(p);
+    if (total === 0 || avail <= 0) return 0; // out of stock — surfaces first
+    if (avail < total) return 1; // partially available
+    return 2; // fully available
+  };
+
+  const sortedParts = [...filteredParts].sort((a, b) => {
+    if (sortBy === "availability") {
+      const diff = availabilityRank(a) - availabilityRank(b);
+      return diff !== 0 ? diff : a.name.localeCompare(b.name, undefined, { numeric: true });
+    }
+    return a.name.localeCompare(b.name, undefined, { numeric: true });
   });
 
   return (
@@ -1051,6 +1068,22 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
       </div>
 
       <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm" style={{ color: "#8FA39A" }}>{filteredParts.length} part{filteredParts.length === 1 ? "" : "s"}{(filterCategory || filterTags.length > 0 || searchQuery.trim()) ? ` (filtered)` : ""}</h2>
+        <div className="flex items-center gap-2">
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="text-xs rounded px-2 py-1.5 outline-none"
+            style={{ background: "#131D19", border: "1px solid #2A3A33", color: "#8FA39A" }}
+          >
+            <option value="alpha">Sort: A–Z</option>
+            <option value="availability">Sort: Availability</option>
+          </select>
+          {isAdmin && <button onClick={() => setShowAddPart((v) => !v)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded" style={{ background: "#1B2622", border: "1px solid #2A3A33", color: "#5FB88A" }}>
+            <Plus size={13} /> Add part
+          </button>}
+        </div>
+      </div>      <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm" style={{ color: "#8FA39A" }}>{filteredParts.length} part{filteredParts.length === 1 ? "" : "s"}{(filterCategory || filterTags.length > 0 || searchQuery.trim()) ? ` (filtered)` : ""}</h2>
         {isAdmin && <button onClick={() => setShowAddPart((v) => !v)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded" style={{ background: "#1B2622", border: "1px solid #2A3A33", color: "#5FB88A" }}>
           <Plus size={13} /> Add part
@@ -1177,7 +1210,7 @@ function PartsTab({ parts, showAddPart, setShowAddPart, newPart, setNewPart, add
       )}
 
       <div className="flex flex-col gap-2">
-        {filteredParts.map((part) => {
+        {sortedParts.map((part) => {
           const avail = availableQty(part);
           const used = allocatedQty(part);
           const total = totalQty(part);
