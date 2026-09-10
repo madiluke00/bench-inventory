@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { Plus, Trash2, Wrench, Boxes, MapPin, X, AlertCircle, Hammer, Tag, ChevronDown, ChevronUp, RefreshCw, Pencil, Check, LogOut, Shield, UserPlus, Trash, Package, Search, Briefcase } from "lucide-react";
+import { Plus, Trash2, Wrench, Boxes, MapPin, X, AlertCircle, Hammer, Tag, ChevronDown, ChevronUp, RefreshCw, Pencil, Check, LogOut, Shield, UserPlus, Trash, Package, Search, Briefcase, User } from "lucide-react";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -982,7 +982,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v5.1</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v5.2</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -1172,6 +1172,21 @@ function UsageForm({ initial, onSave, onCancel, usedBySuggestions, maxQty }) {
         <button onClick={onCancel} className="px-2 py-0.5 text-[11px] rounded" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>Cancel</button>
       </div>
     </div>
+  );
+}
+
+// ---- CHECKOUT BUTTON (shared across all equipment types) ----
+function CheckoutButton({ onClick, isOpen, isCheckedOut }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-1 px-2 py-1 text-[11px] rounded shrink-0"
+      style={{ border: "1px solid #2A3A33", color: isOpen ? "#D98A4B" : "#8FA39A" }}
+      title={isCheckedOut ? "Edit usage" : "Check out"}
+    >
+      <User size={11} />
+      {isCheckedOut ? "Edit usage" : "Check out"}
+    </button>
   );
 }
 
@@ -1953,9 +1968,7 @@ function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEqu
                                               </span>
                                               <div className="flex items-center gap-1 shrink-0">
                                                 {isAdmin && (
-                                                  <button onClick={() => setUsageFormId(isUsageFormOpen ? null : u.id)} className="w-5 h-5 rounded flex items-center justify-center" style={{ color: isUsageFormOpen ? "#D98A4B" : "#6B8077", border: "1px solid #2A3A33" }} title={u.allocatedBuildId ? "Edit usage" : "Check out"}>
-                                                    <Tag size={10} />
-                                                  </button>
+                                                  <CheckoutButton onClick={() => setUsageFormId(isUsageFormOpen ? null : u.id)} isOpen={isUsageFormOpen} isCheckedOut={!!u.allocatedBuildId} />
                                                 )}
                                                 <button onClick={() => setEditingSerialId(isEditingUnit ? null : u.id)} className="w-5 h-5 rounded flex items-center justify-center" style={{ color: isEditingUnit ? "#5FB88A" : "#6B8077", border: "1px solid #2A3A33" }} title="Edit location">
                                                   <Pencil size={10} />
@@ -2088,9 +2101,7 @@ function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEqu
                             />
                           ) : (
                             avail > 0 && (
-                              <button onClick={() => setAddingUsageFor(item.id)} className="flex items-center gap-1 text-[11px]" style={{ color: "#D98A4B" }}>
-                                <Plus size={10} /> Check out
-                              </button>
+                              <CheckoutButton onClick={() => setAddingUsageFor(item.id)} isOpen={false} isCheckedOut={false} />
                             )
                           )
                         )}
@@ -2141,9 +2152,7 @@ function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEqu
                                             </span>
                                             <div className="flex items-center gap-1 shrink-0">
                                               {isAdmin && (
-                                                <button onClick={() => setUsageFormId(isUsageFormOpen ? null : s.id)} className="w-5 h-5 rounded flex items-center justify-center" style={{ color: isUsageFormOpen ? "#D98A4B" : "#6B8077", border: "1px solid #2A3A33" }} title={s.allocatedBuildId ? "Edit usage" : "Check out"}>
-                                                  <Tag size={10} />
-                                                </button>
+                                                <CheckoutButton onClick={() => setUsageFormId(isUsageFormOpen ? null : s.id)} isOpen={isUsageFormOpen} isCheckedOut={!!s.allocatedBuildId} />
                                               )}
                                               <button onClick={() => setEditingSerialId(isEditingSerial ? null : s.id)} className="w-5 h-5 rounded flex items-center justify-center" style={{ color: isEditingSerial ? "#5FB88A" : "#6B8077", border: "1px solid #2A3A33" }} title="Edit location">
                                                 <Pencil size={10} />
