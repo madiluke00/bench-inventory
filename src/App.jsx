@@ -1014,7 +1014,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v5.5.</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v5.5.2.</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -2322,14 +2322,46 @@ function SubBuildsTab({ subbuilds, parts, partsById, builds, showAddSubBuild, se
   const locationData = getLocationOptions(parts, builds, subbuilds);
   const allCategories = [...new Set(subbuilds.map((s) => s.category).filter(Boolean))].sort();
   const allTags = [...new Set(subbuilds.flatMap((s) => s.tags || []))].sort();
+  const [filterCategory, setFilterCategory] = useState("");
+  const [filterTags, setFilterTags] = useState([]);
+  const filteredSubbuilds = subbuilds.filter((s) => {
+    if (filterCategory && s.category !== filterCategory) return false;
+    if (filterTags.length > 0 && !filterTags.some((t) => (s.tags || []).includes(t))) return false;
+    return true;
+  });
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm" style={{ color: "#8FA39A" }}>{subbuilds.length} sub-build{subbuilds.length === 1 ? "" : "s"}</h2>
+        <h2 className="text-sm" style={{ color: "#8FA39A" }}>{filteredSubbuilds.length} sub-build{filteredSubbuilds.length === 1 ? "" : "s"}{(filterCategory || filterTags.length > 0) ? ` (filtered)` : ""}</h2>
         {isAdmin && <button onClick={() => setShowAddSubBuild((v) => !v)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded" style={{ background: "#1B2622", border: "1px solid #2A3A33", color: "#5FB88A" }}>
           <Plus size={13} /> New sub-build
         </button>}
       </div>
+
+      {(allCategories.length > 0 || allTags.length > 0) && (
+        <div className="flex flex-col gap-2 mb-4 p-3 rounded" style={{ background: "#141F1B", border: "1px solid #233029" }}>
+          {allCategories.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] uppercase tracking-wider shrink-0" style={{ color: "#5C6E66" }}>Category</span>
+              <button onClick={() => setFilterCategory("")} className="text-[11px] px-2 py-0.5 rounded" style={{ background: !filterCategory ? "#5FB88A" : "#1B2622", color: !filterCategory ? "#0F1714" : "#8FA39A", border: "1px solid #2A3A33", fontWeight: !filterCategory ? 600 : 400 }}>All</button>
+              {allCategories.map((cat) => (
+                <button key={cat} onClick={() => setFilterCategory(filterCategory === cat ? "" : cat)} className="text-[11px] px-2 py-0.5 rounded" style={{ background: filterCategory === cat ? "#5FB88A" : "#1B2622", color: filterCategory === cat ? "#0F1714" : "#8FA39A", border: "1px solid #2A3A33", fontWeight: filterCategory === cat ? 600 : 400 }}>{cat}</button>
+              ))}
+            </div>
+          )}
+          {allTags.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] uppercase tracking-wider shrink-0" style={{ color: "#5C6E66" }}>Tags</span>
+              {allTags.map((tag) => (
+                <button key={tag} onClick={() => setFilterTags((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag])} className="text-[11px] px-2 py-0.5 rounded" style={{ background: filterTags.includes(tag) ? "#D98A4B" : "#1B2622", color: filterTags.includes(tag) ? "#0F1714" : "#8FA39A", border: "1px solid #2A3A33", fontWeight: filterTags.includes(tag) ? 600 : 400 }}>{tag}</button>
+              ))}
+              {filterTags.length > 0 && (
+                <button onClick={() => setFilterTags([])} className="text-[11px] px-2 py-0.5 rounded" style={{ color: "#6B8077" }}>clear</button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
       {showAddSubBuild && (
         <div className="bench-card rounded p-4 mb-4">
           <div className="grid grid-cols-2 gap-3 mb-3">
@@ -2418,7 +2450,7 @@ function SubBuildsTab({ subbuilds, parts, partsById, builds, showAddSubBuild, se
         </div>
       )}
       <div className="flex flex-col gap-2">
-        {subbuilds.map((subbuild) => {
+        {filteredSubbuilds.map((subbuild) => {
           const isEditing = editingId === subbuild.id;
           const parentBuild = subbuild.allocated_build_id ? builds.find((b) => b.id === subbuild.allocated_build_id) : null;
           return (
@@ -2819,15 +2851,47 @@ function BuildsTab({ builds, parts, partsById, subbuilds, subbuildsById, subbuil
 const locationData = getLocationOptions(parts, builds, subbuilds);
   const allCategories = [...new Set(builds.map((b) => b.category).filter(Boolean))].sort();
   const allTags = [...new Set(builds.flatMap((b) => b.tags || []))].sort();
+  const [filterCategory, setFilterCategory] = useState("");
+  const [filterTags, setFilterTags] = useState([]);
+  const filteredBuilds = builds.filter((b) => {
+    if (filterCategory && b.category !== filterCategory) return false;
+    if (filterTags.length > 0 && !filterTags.some((t) => (b.tags || []).includes(t))) return false;
+    return true;
+  });
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm" style={{ color: "#8FA39A" }}>{builds.length} build{builds.length === 1 ? "" : "s"}</h2>
+        <h2 className="text-sm" style={{ color: "#8FA39A" }}>{filteredBuilds.length} build{filteredBuilds.length === 1 ? "" : "s"}{(filterCategory || filterTags.length > 0) ? ` (filtered)` : ""}</h2>
         {isAdmin && <button onClick={() => setShowAddBuild((v) => !v)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded" style={{ background: "#1B2622", border: "1px solid #2A3A33", color: "#D98A4B" }}>
           <Plus size={13} /> New build
         </button>}
       </div>
+
+      {(allCategories.length > 0 || allTags.length > 0) && (
+        <div className="flex flex-col gap-2 mb-4 p-3 rounded" style={{ background: "#141F1B", border: "1px solid #233029" }}>
+          {allCategories.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] uppercase tracking-wider shrink-0" style={{ color: "#5C6E66" }}>Category</span>
+              <button onClick={() => setFilterCategory("")} className="text-[11px] px-2 py-0.5 rounded" style={{ background: !filterCategory ? "#D98A4B" : "#1B2622", color: !filterCategory ? "#0F1714" : "#8FA39A", border: "1px solid #2A3A33", fontWeight: !filterCategory ? 600 : 400 }}>All</button>
+              {allCategories.map((cat) => (
+                <button key={cat} onClick={() => setFilterCategory(filterCategory === cat ? "" : cat)} className="text-[11px] px-2 py-0.5 rounded" style={{ background: filterCategory === cat ? "#D98A4B" : "#1B2622", color: filterCategory === cat ? "#0F1714" : "#8FA39A", border: "1px solid #2A3A33", fontWeight: filterCategory === cat ? 600 : 400 }}>{cat}</button>
+              ))}
+            </div>
+          )}
+          {allTags.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] uppercase tracking-wider shrink-0" style={{ color: "#5C6E66" }}>Tags</span>
+              {allTags.map((tag) => (
+                <button key={tag} onClick={() => setFilterTags((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag])} className="text-[11px] px-2 py-0.5 rounded" style={{ background: filterTags.includes(tag) ? "#D98A4B" : "#1B2622", color: filterTags.includes(tag) ? "#0F1714" : "#8FA39A", border: "1px solid #2A3A33", fontWeight: filterTags.includes(tag) ? 600 : 400 }}>{tag}</button>
+              ))}
+              {filterTags.length > 0 && (
+                <button onClick={() => setFilterTags([])} className="text-[11px] px-2 py-0.5 rounded" style={{ color: "#6B8077" }}>clear</button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {showAddBuild && (
         <div className="bench-card rounded p-4 mb-4">
@@ -2942,7 +3006,7 @@ const locationData = getLocationOptions(parts, builds, subbuilds);
       )}
 
       <div className="flex flex-col gap-2">
-        {builds.map((build) => {
+        {filteredBuilds.map((build) => {
           const isEditing = editingId === build.id;
           return (
             <div key={build.id} className="bench-card rounded p-3.5">
