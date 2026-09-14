@@ -1014,7 +1014,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v5.4.</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v5.4.2.</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -1869,10 +1869,10 @@ function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEqu
           {allUsedBy.length > 0 && (
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-[10px] uppercase tracking-wider shrink-0" style={{ color: "#5C6E66" }}>In use by</span>
-              <button onClick={() => setFilterUsedBy("")} className="text-[11px] px-2 py-0.5 rounded" style={{ background: !filterUsedBy ? "#5FB88A" : "#1B2622", color: !filterUsedBy ? "#0F1714" : "#8FA39A", border: "1px solid #2A3A33", fontWeight: !filterUsedBy ? 600 : 400 }}>All</button>
               {allUsedBy.map((name) => (
                 <button key={name} onClick={() => setFilterUsedBy(filterUsedBy === name ? "" : name)} className="text-[11px] px-2 py-0.5 rounded" style={{ background: filterUsedBy === name ? "#D98A4B" : "#1B2622", color: filterUsedBy === name ? "#0F1714" : "#8FA39A", border: "1px solid #2A3A33", fontWeight: filterUsedBy === name ? 600 : 400 }}>{name}</button>
               ))}
+              {filterUsedBy && <button onClick={() => setFilterUsedBy("")} className="text-[11px] px-2 py-0.5 rounded" style={{ color: "#6B8077" }}>clear</button>}
               <button onClick={() => setOnlyInUse((v) => !v)} className="text-[11px] px-2 py-0.5 rounded ml-2" style={{ background: onlyInUse ? "#D98A4B" : "#1B2622", color: onlyInUse ? "#0F1714" : "#8FA39A", border: "1px solid #2A3A33", fontWeight: onlyInUse ? 600 : 400 }}>
                 Only show in-use
               </button>
