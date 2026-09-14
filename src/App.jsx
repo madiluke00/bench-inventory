@@ -982,7 +982,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v5.3.2.</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v5.3.3.</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -1153,9 +1153,10 @@ function VariantUnitAdd({ part, variant, updatePart }) {
 }
 
 // ---- USAGE FORM (check-out / edit usage) ----
-function UsageForm({ initial, onSave, onCancel, usedBySuggestions, maxQty }) {
+function UsageForm({ initial, onSave, onCancel, usedBySuggestions, purposeSuggestions = [], maxQty }) {
   const [draft, setDraft] = useState({ qty: initial?.qty ?? 1, usedBy: initial?.usedBy || "", purpose: initial?.purpose || "", returnDate: initial?.returnDate || "" });
   const listId = useRef(`usedby-${uid()}`).current;
+  const purposeListId = useRef(`purpose-${uid()}`).current;
   return (
     <div className="flex flex-col gap-1.5 mt-1 pl-2">
       <div className="grid grid-cols-2 gap-1.5">
@@ -1164,7 +1165,8 @@ function UsageForm({ initial, onSave, onCancel, usedBySuggestions, maxQty }) {
         )}
         <input list={listId} className={`${inputCls} bench-input text-xs py-1`} placeholder="Used by…" value={draft.usedBy} onChange={(e) => setDraft((d) => ({ ...d, usedBy: e.target.value }))} />
         <datalist id={listId}>{usedBySuggestions.map((n) => <option key={n} value={n} />)}</datalist>
-        <input className={`${inputCls} bench-input text-xs py-1`} placeholder="Purpose (e.g. Teaching)" value={draft.purpose} onChange={(e) => setDraft((d) => ({ ...d, purpose: e.target.value }))} />
+        <input list={purposeListId} className={`${inputCls} bench-input text-xs py-1`} placeholder="Purpose (e.g. Teaching)" value={draft.purpose} onChange={(e) => setDraft((d) => ({ ...d, purpose: e.target.value }))} />
+        <datalist id={purposeListId}>{purposeSuggestions.map((p) => <option key={p} value={p} />)}</datalist>
         <input type="date" className={`${inputCls} bench-input text-xs py-1`} value={draft.returnDate || ""} onChange={(e) => setDraft((d) => ({ ...d, returnDate: e.target.value }))} />
       </div>
       <div className="flex gap-1.5">
@@ -1762,6 +1764,13 @@ function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEqu
   const allTags = [...new Set(equipment.flatMap((p) => p.tags || []))].sort();
   const allUsedBy = [...new Set(equipment.flatMap((p) => itemUsedByNames(p)))].sort();
 
+  const itemPurposes = (item) => {
+    if (item.has_variants) return (item.variants || []).flatMap((v) => (v.units || []).filter((u) => u.purpose).map((u) => u.purpose));
+    if (item.serialized) return (item.serials || []).filter((s) => s.purpose).map((s) => s.purpose);
+    return (item.allocations || []).map((a) => a.purpose).filter(Boolean);
+  };
+  const allPurposes = [...new Set(equipment.flatMap((p) => itemPurposes(p)))].sort();
+
   const filteredEquipment = equipment.filter((p) => {
     if (filterCategory && p.category !== filterCategory) return false;
     if (filterTags.length > 0 && !filterTags.some((t) => (p.tags || []).includes(t))) return false;
@@ -2002,6 +2011,7 @@ function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEqu
                                               <UsageForm
                                                 initial={u.allocatedBuildId ? u : undefined}
                                                 usedBySuggestions={allUsedBy}
+                                                purposeSuggestions={allPurposes}
                                                 onSave={async (draft) => { await markEquipmentUnitInUse(item.id, v.id, u.id, draft.usedBy, draft.purpose, draft.returnDate); setUsageFormId(null); }}
                                                 onCancel={() => setUsageFormId(null)}
                                               />
@@ -2080,6 +2090,7 @@ function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEqu
                                       initial={a}
                                       maxQty={availableQty(item) + a.qty}
                                       usedBySuggestions={allUsedBy}
+                                      purposeSuggestions={allPurposes}
                                       onSave={async (draft) => { await updateEquipmentUsage(item.id, a.id, draft); setEditingUsageId(null); }}
                                       onCancel={() => setEditingUsageId(null)}
                                     />
@@ -2094,6 +2105,7 @@ function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEqu
                             <UsageForm
                               maxQty={availableQty(item)}
                               usedBySuggestions={allUsedBy}
+                              purposeSuggestions={allPurposes}
                               onSave={async (draft) => { await addEquipmentUsage(item.id, draft.qty, draft.usedBy, draft.purpose, draft.returnDate); setAddingUsageFor(null); }}
                               onCancel={() => setAddingUsageFor(null)}
                             />
@@ -2176,6 +2188,7 @@ function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEqu
                                             <UsageForm
                                               initial={s.allocatedBuildId ? s : undefined}
                                               usedBySuggestions={allUsedBy}
+                                              purposeSuggestions={allPurposes}
                                               onSave={async (draft) => { await markEquipmentSerialInUse(item.id, s.id, draft.usedBy, draft.purpose, draft.returnDate); setUsageFormId(null); }}
                                               onCancel={() => setUsageFormId(null)}
                                             />
