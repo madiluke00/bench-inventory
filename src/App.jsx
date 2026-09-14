@@ -313,12 +313,12 @@ export default function LabInventory() {
         const [newPart, setNewPart] = useState({ name: "", qty: "1", location: "", location2: "", category: "", serialized: false, serialsText: "", has_variants: false, variantsText: "", variantsSerialized: false, tags: [], notes: "" });
 
   const [showAddBuild, setShowAddBuild] = useState(false);
-    const [newBuild, setNewBuild] = useState({ name: "", location: "", location2: "", notes: "" });
+    const [newBuild, setNewBuild] = useState({ name: "", location: "", location2: "", notes: "", category: "", tags: [] });
   const [buildLines, setBuildLines] = useState([{ id: uid(), partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] }]);
   const [buildError, setBuildError] = useState("");
   const [subbuilds, setSubbuilds] = useState([]);
   const [showAddSubBuild, setShowAddSubBuild] = useState(false);
-  const [newSubBuild, setNewSubBuild] = useState({ name: "", location: "", location2: "", notes: "" });
+  const [newSubBuild, setNewSubBuild] = useState({ name: "", location: "", location2: "", notes: "", category: "", tags: [] });
   const [subBuildLines, setSubBuildLines] = useState([{ id: uid(), partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] }]);
   const [subBuildError, setSubBuildError] = useState("");
   const [subbuildSelections, setSubbuildSelections] = useState([]);
@@ -670,7 +670,7 @@ export default function LabInventory() {
       }
     }
         const buildId = uid();
-    const build = { id: buildId, name: newBuild.name.trim(), location: newBuild.location.trim() || "Lab", location2: newBuild.location2.trim(), lines, notes: newBuild.notes.trim(), created_at: new Date().toISOString() };
+    const build = { id: buildId, name: newBuild.name.trim(), location: newBuild.location.trim() || "Lab", location2: newBuild.location2.trim(), lines, notes: newBuild.notes.trim(), category: newBuild.category.trim(), tags: newBuild.tags, created_at: new Date().toISOString() };
     const { error: bErr } = await supabase.from("builds").insert(build);
     if (bErr) { alert("Failed to save build: " + bErr.message); return; }
     const updatedParts = parts.map((part) => {
@@ -915,7 +915,7 @@ export default function LabInventory() {
       }
     }
         const subbuildId = uid();
-    const subbuild = { id: subbuildId, name: newSubBuild.name.trim(), location: newSubBuild.location.trim() || "Lab", location2: newSubBuild.location2.trim(), lines, allocated_build_id: null, notes: newSubBuild.notes.trim(), created_at: new Date().toISOString() };
+    const subbuild = { id: subbuildId, name: newSubBuild.name.trim(), location: newSubBuild.location.trim() || "Lab", location2: newSubBuild.location2.trim(), lines, allocated_build_id: null, notes: newSubBuild.notes.trim(), category: newSubBuild.category.trim(), tags: newSubBuild.tags, created_at: new Date().toISOString() };
     const { error: sErr } = await supabase.from("subbuilds").insert(subbuild);
     if (sErr) { alert("Failed to save sub-build: " + sErr.message); return; }
     const updatedParts = parts.map((part) => {
@@ -1014,7 +1014,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v5.4.3.</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v5.5.</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -2320,6 +2320,8 @@ function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEqu
 function SubBuildsTab({ subbuilds, parts, partsById, builds, showAddSubBuild, setShowAddSubBuild, newSubBuild, setNewSubBuild, subBuildLines, addSubBuildLine, removeSubBuildLine, updateSubBuildLine, toggleSubBuildLineSerial, createSubBuild, subBuildError, disassembleSubBuild, updateSubBuild, removePartFromSubBuild, addPartToSubBuild, isAdmin }) {
   const [editingId, setEditingId] = useState(null);
   const locationData = getLocationOptions(parts, builds, subbuilds);
+  const allCategories = [...new Set(subbuilds.map((s) => s.category).filter(Boolean))].sort();
+  const allTags = [...new Set(subbuilds.flatMap((s) => s.tags || []))].sort();
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -2332,7 +2334,7 @@ function SubBuildsTab({ subbuilds, parts, partsById, builds, showAddSubBuild, se
         <div className="bench-card rounded p-4 mb-4">
           <div className="grid grid-cols-2 gap-3 mb-3">
             <Field label="Sub-build name"><input autoFocus className={`${inputCls} bench-input`} placeholder="e.g. RPi Box 101" value={newSubBuild.name} onChange={(e) => setNewSubBuild((b) => ({ ...b, name: e.target.value }))} /></Field>
-            <div />
+            <Field label="Category (optional)"><SuggestInput value={newSubBuild.category} onChange={(v) => setNewSubBuild((b) => ({ ...b, category: v }))} options={allCategories} placeholder="e.g. WoW Tech" /></Field>
             <Field label="Primary Location"><input list="loc-addsubbuild" className={`${inputCls} bench-input`} placeholder="e.g. CCWF" value={newSubBuild.location} onChange={(e) => setNewSubBuild((b) => ({ ...b, location: e.target.value }))} /><datalist id="loc-addsubbuild">{locationData.allLocations.map((l) => <option key={l} value={l} />)}</datalist></Field>
                         <Field label="Sub Location"><input list="loc2-addsubbuild" className={`${inputCls} bench-input`} placeholder="e.g. Lab" value={newSubBuild.location2} onChange={(e) => setNewSubBuild((b) => ({ ...b, location2: e.target.value }))} /><datalist id="loc2-addsubbuild">{subLocationOptionsFor(newSubBuild.location, locationData).map((l) => <option key={l} value={l} />)}</datalist></Field>
           </div>
@@ -2340,6 +2342,10 @@ function SubBuildsTab({ subbuilds, parts, partsById, builds, showAddSubBuild, se
             <Field label="Notes (optional)">
               <textarea className={`${inputCls} bench-input`} rows={2} placeholder="Note about this sub-build…" value={newSubBuild.notes} onChange={(e) => setNewSubBuild((b) => ({ ...b, notes: e.target.value }))} />
             </Field>
+          </div>
+          <div className="mb-3">
+            <span className="text-[10px] uppercase tracking-wider" style={{ color: "#8FA39A" }}>Tags</span>
+            <TagInput tags={newSubBuild.tags || []} onChange={(tags) => setNewSubBuild((b) => ({ ...b, tags }))} allTags={allTags} />
           </div>
           <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: "#8FA39A" }}>Parts</div>
           <div className="flex flex-col gap-2">
@@ -2426,8 +2432,16 @@ function SubBuildsTab({ subbuilds, parts, partsById, builds, showAddSubBuild, se
                       ? <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "#1B2622", color: "#D98A4B" }}>in {parentBuild.name}</span>
                       : <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "#1B2622", color: "#5FB88A" }}>free</span>
                     }
+                    {subbuild.category && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "#1B2622", color: "#5FB88A" }}>{subbuild.category}</span>}
                   </div>
                                     <LocationDisplay location={subbuild.location} location2={subbuild.location2} />
+                  {(subbuild.tags || []).length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {subbuild.tags.map((tag) => (
+                        <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "#1B2622", color: "#8FA39A", border: "1px solid #233029" }}>{tag}</span>
+                      ))}
+                    </div>
+                  )}
                   {subbuild.notes && !isEditing && (
                     <p className="text-[11px] mt-1.5 italic" style={{ color: "#8FA39A" }}>Note: {subbuild.notes}</p>
                   )}
@@ -2451,7 +2465,7 @@ function SubBuildsTab({ subbuilds, parts, partsById, builds, showAddSubBuild, se
                   </div>
                                     {isEditing && (
                     <div className="mt-3 pt-3 border-t" style={{ borderColor: "#233029" }}>
-                                            <EditSubBuildForm
+                        <EditSubBuildForm
                         subbuild={subbuild}
                         parentBuild={parentBuild}
 locationData={locationData}
@@ -2461,6 +2475,8 @@ locationData={locationData}
                         addPartToSubBuild={addPartToSubBuild}
                         onSave={async (updates) => { await updateSubBuild(subbuild.id, updates); }}
                         onCancel={() => setEditingId(null)}
+                        allCategories={allCategories}
+                        allTags={allTags}
                       />
                     </div>
                   )}
@@ -2484,13 +2500,13 @@ locationData={locationData}
   );
 }
 
-function EditSubBuildForm({ subbuild, parentBuild, onSave, onCancel, parts, partsById, removePartFromSubBuild, addPartToSubBuild, locationData }) {
-    const [draft, setDraft] = useState({ name: subbuild.name, location: subbuild.location || "", location2: subbuild.location2 || "", notes: subbuild.notes || "" });
+function EditSubBuildForm({ subbuild, parentBuild, onSave, onCancel, parts, partsById, removePartFromSubBuild, addPartToSubBuild, locationData, allCategories, allTags }) {
+    const [draft, setDraft] = useState({ name: subbuild.name, location: subbuild.location || "", location2: subbuild.location2 || "", notes: subbuild.notes || "", category: subbuild.category || "", tags: subbuild.tags || [] });
   const [addLine, setAddLine] = useState({ partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] });
   const [showAdd, setShowAdd] = useState(false);
     const save = () => {
     if (!draft.name.trim()) return;
-    const updates = { name: draft.name.trim(), notes: draft.notes.trim() };
+    const updates = { name: draft.name.trim(), notes: draft.notes.trim(), category: draft.category.trim(), tags: draft.tags };
     if (!parentBuild) {
       updates.location = draft.location.trim() || "Lab";
       updates.location2 = draft.location2.trim();
@@ -2514,7 +2530,7 @@ function EditSubBuildForm({ subbuild, parentBuild, onSave, onCancel, parts, part
     <div>
             <div className="grid grid-cols-2 gap-2">
         <Field label="Name"><input autoFocus className={`${inputCls} bench-input`} value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} /></Field>
-        <div />
+        <Field label="Category"><SuggestInput value={draft.category} onChange={(v) => setDraft((d) => ({ ...d, category: v }))} options={allCategories} placeholder="e.g. WoW Tech" /></Field>
         {parentBuild ? (
           <div className="col-span-2 flex items-center gap-1.5 text-[11px]" style={{ color: "#6B8077" }}>
             <MapPin size={11} color="#6B8077" />
@@ -2531,6 +2547,10 @@ function EditSubBuildForm({ subbuild, parentBuild, onSave, onCancel, parts, part
         <Field label="Notes">
           <textarea className={`${inputCls} bench-input`} rows={2} placeholder="Note about this sub-build…" value={draft.notes} onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))} />
         </Field>
+      </div>
+      <div className="mt-2">
+        <span className="text-[10px] uppercase tracking-wider" style={{ color: "#8FA39A" }}>Tags</span>
+        <TagInput tags={draft.tags || []} onChange={(tags) => setDraft((d) => ({ ...d, tags }))} allTags={allTags} />
       </div>
       <div className="flex gap-2 mt-3">
         <button onClick={save} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded" style={{ background: "#5FB88A", color: "#0F1714", fontWeight: 600 }}><Check size={12} /> Save details</button>
@@ -2619,11 +2639,11 @@ function EditSubBuildForm({ subbuild, parentBuild, onSave, onCancel, parts, part
 }
 
 // ---- EDIT BUILD FORM ----
-function EditBuildForm({ build, onSave, onCancel, parts, partsById, subbuildsById, removePartFromBuild, addPartToBuild, removeSubbuildFromMainBuild, addSubbuildToMainBuild, locationData }) {
-  const [draft, setDraft] = useState({ name: build.name, location: build.location || "", location2: build.location2 || "", notes: build.notes || "" });
+function EditBuildForm({ build, onSave, onCancel, parts, partsById, subbuildsById, removePartFromBuild, addPartToBuild, removeSubbuildFromMainBuild, addSubbuildToMainBuild, locationData, allCategories, allTags }) {
+  const [draft, setDraft] = useState({ name: build.name, location: build.location || "", location2: build.location2 || "", notes: build.notes || "", category: build.category || "", tags: build.tags || [] });
   const [addLine, setAddLine] = useState({ partId: "", qty: "1", serialIds: [], variantId: "", unitIds: [] });
   const [showAdd, setShowAdd] = useState(false);
-  const save = () => { if (!draft.name.trim()) return; onSave({ name: draft.name.trim(), location: draft.location.trim() || "Lab", location2: draft.location2.trim(), notes: draft.notes.trim() }); };
+  const save = () => { if (!draft.name.trim()) return; onSave({ name: draft.name.trim(), location: draft.location.trim() || "Lab", location2: draft.location2.trim(), notes: draft.notes.trim(), category: draft.category.trim(), tags: draft.tags }); };
   const selectedPart = partsById[addLine.partId];
   const handleAddPart = async () => {
     if (!addLine.partId) return;
@@ -2641,7 +2661,7 @@ function EditBuildForm({ build, onSave, onCancel, parts, partsById, subbuildsByI
     <div className="mt-3 pt-3 border-t" style={{ borderColor: "#233029" }}>
       <div className="grid grid-cols-2 gap-2">
         <Field label="Build Name"><input autoFocus className={`${inputCls} bench-input`} value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} /></Field>
-        <div />
+        <Field label="Category"><SuggestInput value={draft.category} onChange={(v) => setDraft((d) => ({ ...d, category: v }))} options={allCategories} placeholder="e.g. WoW Tech" /></Field>
         <Field label="Primary Location"><input list="loc-editbuild" className={`${inputCls} bench-input`} value={draft.location} onChange={(e) => setDraft((d) => ({ ...d, location: e.target.value }))} placeholder="e.g. Feedlot A" /><datalist id="loc-editbuild">{locationData.allLocations.map((l) => <option key={l} value={l} />)}</datalist></Field>
         <Field label="Sub Location"><input className={`${inputCls} bench-input`} value={draft.location2} onChange={(e) => setDraft((d) => ({ ...d, location2: e.target.value }))} placeholder="e.g. Pen 3" /></Field>
       </div>
@@ -2649,6 +2669,10 @@ function EditBuildForm({ build, onSave, onCancel, parts, partsById, subbuildsByI
         <Field label="Notes">
           <textarea className={`${inputCls} bench-input`} rows={2} placeholder="Note about this build…" value={draft.notes} onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))} />
         </Field>
+      </div>
+      <div className="mt-2">
+        <span className="text-[10px] uppercase tracking-wider" style={{ color: "#8FA39A" }}>Tags</span>
+        <TagInput tags={draft.tags || []} onChange={(tags) => setDraft((d) => ({ ...d, tags }))} allTags={allTags} />
       </div>
       <div className="flex gap-2 mt-3">
         <button onClick={save} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded" style={{ background: "#D98A4B", color: "#0F1714", fontWeight: 600 }}><Check size={12} /> Save details</button>
@@ -2793,6 +2817,8 @@ function BuildsTab({ builds, parts, partsById, subbuilds, subbuildsById, subbuil
   const [editingId, setEditingId] = useState(null);
   const freeSubbuilds = (subbuilds || []).filter((s) => !s.allocated_build_id);
 const locationData = getLocationOptions(parts, builds, subbuilds);
+  const allCategories = [...new Set(builds.map((b) => b.category).filter(Boolean))].sort();
+  const allTags = [...new Set(builds.flatMap((b) => b.tags || []))].sort();
 
   return (
     <div>
@@ -2807,7 +2833,7 @@ const locationData = getLocationOptions(parts, builds, subbuilds);
         <div className="bench-card rounded p-4 mb-4">
           <div className="grid grid-cols-2 gap-3 mb-3">
             <Field label="Build name"><input autoFocus className={`${inputCls} bench-input`} placeholder="e.g. WoW Unit 01" value={newBuild.name} onChange={(e) => setNewBuild((b) => ({ ...b, name: e.target.value }))} /></Field>
-            <div />
+            <Field label="Category (optional)"><SuggestInput value={newBuild.category} onChange={(v) => setNewBuild((b) => ({ ...b, category: v }))} options={allCategories} placeholder="e.g. WoW Tech" /></Field>
             <Field label="Primary Location"><input list="loc-addbuild" className={`${inputCls} bench-input`} placeholder="e.g. Feedlot A" value={newBuild.location} onChange={(e) => setNewBuild((b) => ({ ...b, location: e.target.value }))} /><datalist id="loc-addbuild">{locationData.allLocations.map((l) => <option key={l} value={l} />)}</datalist></Field>
                         <Field label="Sub Location"><input list="loc2-addbuild" className={`${inputCls} bench-input`} placeholder="e.g. Pen 3" value={newBuild.location2} onChange={(e) => setNewBuild((b) => ({ ...b, location2: e.target.value }))} /><datalist id="loc2-addbuild">{subLocationOptionsFor(newBuild.location, locationData).map((l) => <option key={l} value={l} />)}</datalist></Field>
           </div>
@@ -2815,6 +2841,10 @@ const locationData = getLocationOptions(parts, builds, subbuilds);
             <Field label="Notes (optional)">
               <textarea className={`${inputCls} bench-input`} rows={2} placeholder="Note about this build…" value={newBuild.notes} onChange={(e) => setNewBuild((b) => ({ ...b, notes: e.target.value }))} />
             </Field>
+          </div>
+          <div className="mb-3">
+            <span className="text-[10px] uppercase tracking-wider" style={{ color: "#8FA39A" }}>Tags</span>
+            <TagInput tags={newBuild.tags || []} onChange={(tags) => setNewBuild((b) => ({ ...b, tags }))} allTags={allTags} />
           </div>
           <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: "#8FA39A" }}>Parts used</div>
           <div className="flex flex-col gap-2">
@@ -2921,8 +2951,16 @@ const locationData = getLocationOptions(parts, builds, subbuilds);
                   <div className="flex items-center gap-2">
                     <Wrench size={13} color="#D98A4B" />
                     <span className="text-sm font-semibold">{build.name}</span>
+                    {build.category && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "#1B2622", color: "#5FB88A" }}>{build.category}</span>}
                   </div>
                                     <LocationDisplay location={build.location} location2={build.location2} />
+                  {(build.tags || []).length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {build.tags.map((tag) => (
+                        <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "#1B2622", color: "#8FA39A", border: "1px solid #233029" }}>{tag}</span>
+                      ))}
+                    </div>
+                  )}
                   {build.notes && !isEditing && (
                     <p className="text-[11px] mt-1.5 italic" style={{ color: "#8FA39A" }}>Note: {build.notes}</p>
                   )}
@@ -2962,7 +3000,7 @@ const locationData = getLocationOptions(parts, builds, subbuilds);
                     })}
                   </div>
                   {isEditing && (
-                    <EditBuildForm build={build} onSave={async (updates) => { await updateBuild(build.id, updates); }} onCancel={() => setEditingId(null)} parts={parts} partsById={partsById} subbuildsById={subbuildsById} removePartFromBuild={removePartFromBuild} addPartToBuild={addPartToBuild} removeSubbuildFromMainBuild={removeSubbuildFromMainBuild} addSubbuildToMainBuild={addSubbuildToMainBuild} locationData={locationData} />
+                    <EditBuildForm build={build} onSave={async (updates) => { await updateBuild(build.id, updates); }} onCancel={() => setEditingId(null)} parts={parts} partsById={partsById} subbuildsById={subbuildsById} removePartFromBuild={removePartFromBuild} addPartToBuild={addPartToBuild} removeSubbuildFromMainBuild={removeSubbuildFromMainBuild} addSubbuildToMainBuild={addSubbuildToMainBuild} locationData={locationData} allCategories={allCategories} allTags={allTags} />
                   )}
                 </div>
                 {isAdmin && <div className="flex items-center gap-1.5 shrink-0">
