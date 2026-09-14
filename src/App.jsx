@@ -982,7 +982,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v5.3</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v5.3.2.</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -2069,12 +2069,10 @@ function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEqu
                                     <div className="flex items-center justify-between gap-2">
                                       <span style={{ color: "#D98A4B" }}>
                                         ↳ {a.qty} in use by {a.usedBy}{a.purpose ? ` — ${a.purpose}` : ""}{a.returnDate ? ` (back ${a.returnDate})` : ""}
+                                        {isAdmin && <button onClick={() => removeEquipmentUsage(item.id, a.id)} className="ml-2 underline" style={{ color: "#8FA39A" }}>Return</button>}
                                       </span>
                                       {isAdmin && (
-                                        <div className="flex items-center gap-1 shrink-0">
-                                          <button onClick={() => setEditingUsageId(a.id)} className="w-5 h-5 rounded flex items-center justify-center" style={{ color: "#6B8077", border: "1px solid #2A3A33" }} title="Edit"><Pencil size={10} /></button>
-                                          <button onClick={() => removeEquipmentUsage(item.id, a.id)} className="text-[11px] underline" style={{ color: "#8FA39A" }}>Return</button>
-                                        </div>
+                                        <button onClick={() => setEditingUsageId(a.id)} className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ color: "#6B8077", border: "1px solid #2A3A33" }} title="Edit"><Pencil size={10} /></button>
                                       )}
                                     </div>
                                   ) : (
