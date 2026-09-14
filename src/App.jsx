@@ -543,13 +543,19 @@ export default function LabInventory() {
     await updateEquipment(itemId, { serials: item.serials.filter((s) => s.id !== serialId) });
   };
 
-  const addEquipmentUsage = async (itemId, qty, usedBy, purpose, returnDate) => {
+  const addEquipmentUsage = async (itemId, qty, usedBy, purpose, returnDate, location, location2) => {
     const item = equipment.find((p) => p.id === itemId);
     if (!item) return;
     const q = parseInt(qty, 10) || 0;
     if (q <= 0 || q > availableQty(item)) { alert("Quantity exceeds what's available."); return; }
-    const newAllocations = [...(item.allocations || []), { id: uid(), qty: q, usedBy: usedBy.trim(), purpose: purpose.trim(), returnDate: returnDate || null }];
-    await updateEquipment(itemId, { allocations: newAllocations });
+    const newAllocations = [...(item.allocations || []), { id: uid(), qty: q, usedBy: usedBy.trim(), purpose: purpose.trim(), returnDate: returnDate || null, location: location?.trim() || "", location2: location2?.trim() || "" }];
+    const updates = { allocations: newAllocations };
+    const nowAllocated = newAllocations.reduce((s, a) => s + a.qty, 0);
+    if (nowAllocated >= totalQty(item) && location?.trim()) {
+      updates.location = location.trim();
+      updates.location2 = location2?.trim() || "";
+    }
+    await updateEquipment(itemId, updates);
   };
 
   const updateEquipmentUsage = async (itemId, usageId, updates) => {
@@ -564,8 +570,14 @@ export default function LabInventory() {
       if (newQty <= 0 || newQty > maxAllowed) { alert("Quantity exceeds what's available."); return; }
       qty = newQty;
     }
-    const newAllocations = item.allocations.map((a) => a.id === usageId ? { ...a, usedBy: updates.usedBy.trim(), purpose: updates.purpose.trim(), returnDate: updates.returnDate || null, qty } : a);
-    await updateEquipment(itemId, { allocations: newAllocations });
+    const newAllocations = item.allocations.map((a) => a.id === usageId ? { ...a, usedBy: updates.usedBy.trim(), purpose: updates.purpose.trim(), returnDate: updates.returnDate || null, qty, location: updates.location?.trim() || "", location2: updates.location2?.trim() || "" } : a);
+    const itemUpdates = { allocations: newAllocations };
+    const nowAllocated = newAllocations.reduce((s, a) => s + a.qty, 0);
+    if (nowAllocated >= totalQty(item) && updates.location?.trim()) {
+      itemUpdates.location = updates.location.trim();
+      itemUpdates.location2 = updates.location2?.trim() || "";
+    }
+    await updateEquipment(itemId, itemUpdates);
   };
 
   const removeEquipmentUsage = async (itemId, usageId) => {
@@ -574,11 +586,17 @@ export default function LabInventory() {
     await updateEquipment(itemId, { allocations: (item.allocations || []).filter((a) => a.id !== usageId) });
   };
 
-  const markEquipmentSerialInUse = async (itemId, serialId, usedBy, purpose, returnDate) => {
+  const markEquipmentSerialInUse = async (itemId, serialId, usedBy, purpose, returnDate, location, location2) => {
     const item = equipment.find((p) => p.id === itemId);
     if (!item) return;
-    const newSerials = item.serials.map((s) => s.id === serialId ? { ...s, allocatedBuildId: true, usedBy: usedBy.trim(), purpose: purpose.trim(), returnDate: returnDate || null } : s);
-    await updateEquipment(itemId, { serials: newSerials });
+    const newSerials = item.serials.map((s) => s.id === serialId ? { ...s, allocatedBuildId: true, usedBy: usedBy.trim(), purpose: purpose.trim(), returnDate: returnDate || null, location: location?.trim() || s.location, location2: location2?.trim() || s.location2 } : s);
+    const updates = { serials: newSerials };
+    const allNowInUse = newSerials.every((s) => s.allocatedBuildId);
+    if (allNowInUse && location?.trim()) {
+      updates.location = location.trim();
+      updates.location2 = location2?.trim() || "";
+    }
+    await updateEquipment(itemId, updates);
   };
 
   const returnEquipmentSerial = async (itemId, serialId) => {
@@ -588,11 +606,17 @@ export default function LabInventory() {
     await updateEquipment(itemId, { serials: newSerials });
   };
 
-  const markEquipmentUnitInUse = async (itemId, variantId, unitId, usedBy, purpose, returnDate) => {
+  const markEquipmentUnitInUse = async (itemId, variantId, unitId, usedBy, purpose, returnDate, location, location2) => {
     const item = equipment.find((p) => p.id === itemId);
     if (!item) return;
-    const newVariants = item.variants.map((v) => v.id === variantId ? { ...v, units: v.units.map((u) => u.id === unitId ? { ...u, allocatedBuildId: true, usedBy: usedBy.trim(), purpose: purpose.trim(), returnDate: returnDate || null } : u) } : v);
-    await updateEquipment(itemId, { variants: newVariants });
+    const newVariants = item.variants.map((v) => v.id === variantId ? { ...v, units: v.units.map((u) => u.id === unitId ? { ...u, allocatedBuildId: true, usedBy: usedBy.trim(), purpose: purpose.trim(), returnDate: returnDate || null, location: location?.trim() || u.location, location2: location2?.trim() || u.location2 } : u) } : v);
+    const updates = { variants: newVariants };
+    const allNowInUse = newVariants.every((v) => (v.units || []).every((u) => u.allocatedBuildId));
+    if (allNowInUse && location?.trim()) {
+      updates.location = location.trim();
+      updates.location2 = location2?.trim() || "";
+    }
+    await updateEquipment(itemId, updates);
   };
 
   const returnEquipmentUnit = async (itemId, variantId, unitId) => {
@@ -990,7 +1014,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v5.3.4.</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v5.4.</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -1161,10 +1185,12 @@ function VariantUnitAdd({ part, variant, updatePart }) {
 }
 
 // ---- USAGE FORM (check-out / edit usage) ----
-function UsageForm({ initial, onSave, onCancel, usedBySuggestions, purposeSuggestions = [], maxQty }) {
-  const [draft, setDraft] = useState({ qty: initial?.qty ?? 1, usedBy: initial?.usedBy || "", purpose: initial?.purpose || "", returnDate: initial?.returnDate || "" });
+function UsageForm({ initial, onSave, onCancel, usedBySuggestions, purposeSuggestions = [], maxQty, locationData, defaultLocation, defaultLocation2 }) {
+  const [draft, setDraft] = useState({ qty: initial?.qty ?? 1, usedBy: initial?.usedBy || "", purpose: initial?.purpose || "", returnDate: initial?.returnDate || "", location: initial?.location || "", location2: initial?.location2 || "" });
   const listId = useRef(`usedby-${uid()}`).current;
   const purposeListId = useRef(`purpose-${uid()}`).current;
+  const locListId = useRef(`checkoutloc-${uid()}`).current;
+  const loc2ListId = useRef(`checkoutloc2-${uid()}`).current;
   return (
     <div className="flex flex-col gap-1.5 mt-1 pl-2">
       <div className="grid grid-cols-2 gap-1.5">
@@ -1180,6 +1206,20 @@ function UsageForm({ initial, onSave, onCancel, usedBySuggestions, purposeSugges
           <input type="date" className={`${inputCls} bench-input text-xs py-1`} value={draft.returnDate || ""} onChange={(e) => setDraft((d) => ({ ...d, returnDate: e.target.value }))} />
         </div>
       </div>
+      {locationData && (
+        <div className="grid grid-cols-2 gap-1.5">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[10px]" style={{ color: "#6B8077" }}>Location while checked out (optional)</span>
+            <input list={locListId} className={`${inputCls} bench-input text-xs py-1`} placeholder={defaultLocation || "Location"} value={draft.location} onChange={(e) => setDraft((d) => ({ ...d, location: e.target.value }))} />
+            <datalist id={locListId}>{locationData.allLocations.map((l) => <option key={l} value={l} />)}</datalist>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[10px]" style={{ color: "#6B8077" }}>Sub location (optional)</span>
+            <input list={loc2ListId} className={`${inputCls} bench-input text-xs py-1`} placeholder={defaultLocation2 || "Sub location"} value={draft.location2} onChange={(e) => setDraft((d) => ({ ...d, location2: e.target.value }))} />
+            <datalist id={loc2ListId}>{subLocationOptionsFor(draft.location, locationData).map((l) => <option key={l} value={l} />)}</datalist>
+          </div>
+        </div>
+      )}
       <div className="flex gap-1.5">
         <button onClick={() => { if (!draft.usedBy.trim()) { alert("Enter who it's being used by."); return; } onSave(draft); }} className="flex items-center gap-1 px-2 py-0.5 text-[11px] rounded" style={{ background: "#5FB88A", color: "#0F1714", fontWeight: 600 }}><Check size={10} /> Save</button>
         <button onClick={onCancel} className="px-2 py-0.5 text-[11px] rounded" style={{ border: "1px solid #2A3A33", color: "#8FA39A" }}>Cancel</button>
@@ -2023,7 +2063,10 @@ function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEqu
                                                 initial={u.allocatedBuildId ? u : undefined}
                                                 usedBySuggestions={allUsedBy}
                                                 purposeSuggestions={allPurposes}
-                                                onSave={async (draft) => { await markEquipmentUnitInUse(item.id, v.id, u.id, draft.usedBy, draft.purpose, draft.returnDate); setUsageFormId(null); }}
+                                                locationData={locationData}
+                                                defaultLocation={u.location || item.location}
+                                                defaultLocation2={u.location2 || item.location2}
+                                                onSave={async (draft) => { await markEquipmentUnitInUse(item.id, v.id, u.id, draft.usedBy, draft.purpose, draft.returnDate, draft.location, draft.location2); setUsageFormId(null); }}
                                                 onCancel={() => setUsageFormId(null)}
                                               />
                                             )}
@@ -2089,7 +2132,7 @@ function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEqu
                                   {!isEditingUsage ? (
                                     <div className="flex items-center justify-between gap-2">
                                       <span style={{ color: "#D98A4B" }}>
-                                        ↳ {a.qty} in use by {a.usedBy}{a.purpose ? ` — ${a.purpose}` : ""}{a.returnDate ? ` (returning ${formatDateDMY(a.returnDate)})` : ""}
+                                        ↳ {a.qty} in use by {a.usedBy}{a.purpose ? ` — ${a.purpose}` : ""}{a.location ? ` @ ${a.location}${a.location2 ? ` · ${a.location2}` : ""}` : ""}{a.returnDate ? ` (returning ${formatDateDMY(a.returnDate)})` : ""}
                                         {isAdmin && <button onClick={() => removeEquipmentUsage(item.id, a.id)} className="ml-2 underline" style={{ color: "#8FA39A" }}>Return</button>}
                                       </span>
                                       {isAdmin && (
@@ -2102,6 +2145,9 @@ function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEqu
                                       maxQty={availableQty(item) + a.qty}
                                       usedBySuggestions={allUsedBy}
                                       purposeSuggestions={allPurposes}
+                                      locationData={locationData}
+                                      defaultLocation={a.location || item.location}
+                                      defaultLocation2={a.location2 || item.location2}
                                       onSave={async (draft) => { await updateEquipmentUsage(item.id, a.id, draft); setEditingUsageId(null); }}
                                       onCancel={() => setEditingUsageId(null)}
                                     />
@@ -2117,7 +2163,10 @@ function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEqu
                               maxQty={availableQty(item)}
                               usedBySuggestions={allUsedBy}
                               purposeSuggestions={allPurposes}
-                              onSave={async (draft) => { await addEquipmentUsage(item.id, draft.qty, draft.usedBy, draft.purpose, draft.returnDate); setAddingUsageFor(null); }}
+                              locationData={locationData}
+                              defaultLocation={item.location}
+                              defaultLocation2={item.location2}
+                              onSave={async (draft) => { await addEquipmentUsage(item.id, draft.qty, draft.usedBy, draft.purpose, draft.returnDate, draft.location, draft.location2); setAddingUsageFor(null); }}
                               onCancel={() => setAddingUsageFor(null)}
                             />
                           ) : (
@@ -2200,7 +2249,10 @@ function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEqu
                                               initial={s.allocatedBuildId ? s : undefined}
                                               usedBySuggestions={allUsedBy}
                                               purposeSuggestions={allPurposes}
-                                              onSave={async (draft) => { await markEquipmentSerialInUse(item.id, s.id, draft.usedBy, draft.purpose, draft.returnDate); setUsageFormId(null); }}
+                                              locationData={locationData}
+                                              defaultLocation={s.location || item.location}
+                                              defaultLocation2={s.location2 || item.location2}
+                                              onSave={async (draft) => { await markEquipmentSerialInUse(item.id, s.id, draft.usedBy, draft.purpose, draft.returnDate, draft.location, draft.location2); setUsageFormId(null); }}
                                               onCancel={() => setUsageFormId(null)}
                                             />
                                           )}
