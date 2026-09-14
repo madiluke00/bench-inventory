@@ -21,6 +21,14 @@ function useFonts() {
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
+// Converts an ISO date string ("yyyy-mm-dd", as produced by <input type="date">) to dd/mm/yyyy for display
+function formatDateDMY(dateStr) {
+  if (!dateStr) return "";
+  const [y, m, d] = dateStr.split("-");
+  if (!y || !m || !d) return dateStr;
+  return `${d}/${m}/${y}`;
+}
+
 // Builds location + sub-location suggestion lists from every part/build/sub-build in the system
 function getLocationOptions(parts, builds, subbuilds, equipment) {
   const records = [...(parts || []), ...(builds || []), ...(subbuilds || []), ...(equipment || [])];
@@ -982,7 +990,7 @@ export default function LabInventory() {
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "-0.01em" }} className="text-xl">
                 BENCH<span style={{ color: "#D98A4B" }}>.</span>
-                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v5.3.3.</span>
+                <span className="text-[10px] ml-2" style={{ color: "#5C6E66", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>v5.3.4.</span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -1167,7 +1175,10 @@ function UsageForm({ initial, onSave, onCancel, usedBySuggestions, purposeSugges
         <datalist id={listId}>{usedBySuggestions.map((n) => <option key={n} value={n} />)}</datalist>
         <input list={purposeListId} className={`${inputCls} bench-input text-xs py-1`} placeholder="Purpose (e.g. Teaching)" value={draft.purpose} onChange={(e) => setDraft((d) => ({ ...d, purpose: e.target.value }))} />
         <datalist id={purposeListId}>{purposeSuggestions.map((p) => <option key={p} value={p} />)}</datalist>
-        <input type="date" className={`${inputCls} bench-input text-xs py-1`} value={draft.returnDate || ""} onChange={(e) => setDraft((d) => ({ ...d, returnDate: e.target.value }))} />
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[10px]" style={{ color: "#6B8077" }}>Return date (optional)</span>
+          <input type="date" className={`${inputCls} bench-input text-xs py-1`} value={draft.returnDate || ""} onChange={(e) => setDraft((d) => ({ ...d, returnDate: e.target.value }))} />
+        </div>
       </div>
       <div className="flex gap-1.5">
         <button onClick={() => { if (!draft.usedBy.trim()) { alert("Enter who it's being used by."); return; } onSave(draft); }} className="flex items-center gap-1 px-2 py-0.5 text-[11px] rounded" style={{ background: "#5FB88A", color: "#0F1714", fontWeight: 600 }}><Check size={10} /> Save</button>
@@ -1989,7 +2000,7 @@ function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEqu
                                             </div>
                                             {u.allocatedBuildId && !isUsageFormOpen && (
                                               <div className="text-[10px] pl-3" style={{ color: "#D98A4B" }}>
-                                                in use by {u.usedBy}{u.purpose ? ` — ${u.purpose}` : ""}{u.returnDate ? ` (back ${u.returnDate})` : ""}
+                                                in use by {u.usedBy}{u.purpose ? ` — ${u.purpose}` : ""}{u.returnDate ? ` (returning ${formatDateDMY(u.returnDate)})` : ""}
                                                 {isAdmin && <button onClick={() => returnEquipmentUnit(item.id, v.id, u.id)} className="ml-2 underline" style={{ color: "#8FA39A" }}>Return</button>}
                                               </div>
                                             )}
@@ -2078,7 +2089,7 @@ function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEqu
                                   {!isEditingUsage ? (
                                     <div className="flex items-center justify-between gap-2">
                                       <span style={{ color: "#D98A4B" }}>
-                                        ↳ {a.qty} in use by {a.usedBy}{a.purpose ? ` — ${a.purpose}` : ""}{a.returnDate ? ` (back ${a.returnDate})` : ""}
+                                        ↳ {a.qty} in use by {a.usedBy}{a.purpose ? ` — ${a.purpose}` : ""}{a.returnDate ? ` (returning ${formatDateDMY(a.returnDate)})` : ""}
                                         {isAdmin && <button onClick={() => removeEquipmentUsage(item.id, a.id)} className="ml-2 underline" style={{ color: "#8FA39A" }}>Return</button>}
                                       </span>
                                       {isAdmin && (
@@ -2174,7 +2185,7 @@ function EquipmentTab({ equipment, showAddEquipment, setShowAddEquipment, newEqu
                                           </div>
                                           {s.allocatedBuildId && !isUsageFormOpen && (
                                             <div className="text-[10px] pl-3" style={{ color: "#D98A4B" }}>
-                                              in use by {s.usedBy}{s.purpose ? ` — ${s.purpose}` : ""}{s.returnDate ? ` (back ${s.returnDate})` : ""}
+                                              in use by {s.usedBy}{s.purpose ? ` — ${s.purpose}` : ""}{s.returnDate ? ` (returning ${formatDateDMY(s.returnDate)})` : ""}
                                               {isAdmin && <button onClick={() => returnEquipmentSerial(item.id, s.id)} className="ml-2 underline" style={{ color: "#8FA39A" }}>Return</button>}
                                             </div>
                                           )}
